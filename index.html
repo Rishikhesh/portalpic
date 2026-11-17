@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PortalPic: resize photos & signatures for exam and visa forms</title>
+<meta name="description" content="Free, open-source tool that resizes photos and signatures to the exact pixel size and KB limit of SSC, UPSC, IBPS, NTA, DS-160 and other application portals. Runs in your browser; nothing is uploaded.">
+<meta name="theme-color" content="#1f3a8a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a8a'/><rect x='9' y='7' width='14' height='18' rx='2' fill='none' stroke='white' stroke-width='2'/><circle cx='16' cy='14' r='3' fill='white'/><path d='M11 23c1-3 3-4 5-4s4 1 5 4' fill='white'/></svg>">
+<style>
+:root{
+  --bg:#f7f7f5;--panel:#fff;--ink:#16181d;--muted:#5d6370;--line:#e3e4e8;
+  --accent:#1f3a8a;--accent-ink:#fff;--ok:#127a3d;--warn:#a15c00;--bad:#b42318;
+  --radius:12px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111317;--panel:#1a1d23;--ink:#eceef2;--muted:#9aa1ad;--line:#2a2e36;
+  --accent:#8fa8ff;--accent-ink:#0d1330;--ok:#4cc38a;--warn:#f0b04a;--bad:#ff7b72;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+header h1{font-size:28px;margin:0;letter-spacing:-.02em}
+header p{margin:4px 0 0;color:var(--muted)}
+.badge{display:inline-flex;gap:6px;align-items:center;margin-top:10px;font-size:13px;color:var(--ok);font-weight:600}
+.grid{display:grid;gap:16px;margin-top:24px;grid-template-columns:1fr}
+@media (min-width:820px){.grid{grid-template-columns:1fr 1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px}
+label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+select,input[type=number]{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:13px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
+.note{font-size:13px;color:var(--muted);margin-top:8px}
+.note a{color:inherit}
+.custom{display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.custom.on{display:grid}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;border:2px dashed var(--line);border-radius:var(--radius);cursor:pointer;text-align:center;padding:16px;margin-top:16px;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.drop strong{font-size:16px}
+.drop span{font-size:13px;color:var(--muted)}
+.drop input{position:absolute;opacity:0;pointer-events:none;width:1px}
+.stage{display:none}
+.stage.on{display:block}
+.cropwrap{display:flex;justify-content:center;background:repeating-conic-gradient(var(--line) 0 25%,transparent 0 50%) 0 0/16px 16px;border-radius:8px;padding:12px}
+#crop{max-width:100%;max-height:360px;touch-action:none;cursor:grab;border-radius:4px;box-shadow:0 0 0 1px var(--line)}
+#crop:active{cursor:grabbing}
+.row{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:14px}
+.row input[type=range]{flex:1}
+.row input[type=checkbox]{width:18px;height:18px}
+.result{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.result img{max-width:100%;border:1px solid var(--line);border-radius:4px;background:#fff}
+.stats{font-size:14px;flex:1;min-width:180px}
+.stats div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0}
+.stats b{font-variant-numeric:tabular-nums}
+.status{margin-top:12px;font-weight:600}
+.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}.status.bad{color:var(--bad)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;width:100%;padding:12px 16px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
+.btn[aria-disabled=true]{opacity:.45;pointer-events:none}
+.btn:focus-visible,select:focus-visible,input:focus-visible,.drop:focus-within{outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
+footer{margin-top:32px;font-size:13px;color:var(--muted)}
+footer a{color:inherit}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>PortalPic</h1>
+    <p>Resize photos and signatures to the exact size exam and visa forms ask for.</p>
+    <div class="badge">🔒 Runs in your browser. Your photo is never uploaded.</div>
+  </header>
+
+  <div class="grid">
+    <section>
+      <h2>1 · Form</h2>
+      <label for="preset">What are you uploading?</label>
+      <select id="preset"></select>
+      <div class="chips" id="chips"></div>
+      <p class="note" id="pnote"></p>
+      <div class="custom" id="custom">
+        <div><label for="cw">Width px</label><input id="cw" type="number" min="16" max="4000" inputmode="numeric" value="200"></div>
+        <div><label for="ch">Height px</label><input id="ch" type="number" min="16" max="4000" inputmode="numeric" value="230"></div>
+        <div><label for="cmin">Min KB</label><input id="cmin" type="number" min="0" step="1" inputmode="numeric" value="20"></div>
+        <div><label for="cmax">Max KB</label><input id="cmax" type="number" min="1" step="1" inputmode="numeric" value="50"></div>
+      </div>
+
+      <label class="drop" id="drop">
+        <input id="file" type="file" accept="image/*">
+        <strong>Choose a photo</strong>
+        <span>or drop / paste it here · JPG, PNG, HEIC*</span>
+      </label>
+    </section>
+
+    <section>
+      <h2>2 · Adjust</h2>
+      <p class="note" id="adjhint">Pick a photo first. You can then drag it to position and zoom.</p>
+      <div class="stage" id="adjust">
+        <div class="cropwrap"><canvas id="crop" aria-label="Crop preview. Drag to move the photo."></canvas></div>
+        <div class="row"><span>Zoom</span><input id="zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom"></div>
+        <div class="row"><input id="whiten" type="checkbox"><label for="whiten" style="margin:0;font-weight:500">Clean paper background (for signatures)</label></div>
+        <div class="row"><input id="rotate" type="button" class="btn" value="Rotate 90°" style="margin:0;width:auto;padding:8px 14px;background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1px var(--line)"></div>
+      </div>
+    </section>
+
+    <section style="grid-column:1/-1">
+      <h2>3 · Result</h2>
+      <div class="stage" id="out" aria-live="polite">
+        <div class="result">
+          <img id="preview" alt="Resized result">
+          <div class="stats">
+            <div><span>Size</span><b id="sKB">–</b></div>
+            <div><span>Dimensions</span><b id="sDim">–</b></div>
+            <div><span>JPEG quality</span><b id="sQ">–</b></div>
+            <div><span>Required</span><b id="sReq">–</b></div>
+            <p class="status" id="status"></p>
+            <a class="btn" id="dl" aria-disabled="true" download>Download JPG</a>
+          </div>
+        </div>
+      </div>
+      <p class="note" id="outhint">Your resized file will appear here.</p>
+    </section>
+  </div>
+
+  <footer>
+    <p>Always check the size rules in your official notification. Portals change them. Spotted a wrong or missing preset? <a href="https://github.com/Rishikhesh/portalpic/issues">Open an issue</a>.</p>
+    <p>* On iPhone, HEIC photos are converted automatically when picked from the photo library. Open source (MIT) · <a href="https://github.com/Rishikhesh/portalpic">GitHub</a></p>
+  </footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
