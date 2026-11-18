@@ -1,6 +1,6 @@
 import type { Spec } from "./spec";
 
-export const SITE = "https://portalpic.vercel.app";
+export const SITE = "https://portalpic.com";
 export const HOME_TITLE = "PortalPic: resize photos & signatures for exam and visa forms";
 export const HOME_DESCRIPTION =
   "Free tool that resizes photos and signatures to the exact pixel size and KB limit of IBPS, SSC, UPSC, NEET, JEE, GATE, PAN, OCI and visa or passport forms for the US, UK, Canada, Australia and more. Runs in your browser; nothing is uploaded.";
