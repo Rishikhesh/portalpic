@@ -1,0 +1,75 @@
+// PortalPic request form → GitHub issues, and an email to the requester when their issue closes.
+// Bound to the form's response Sheet. Setup: see README.md in this folder.
+/* global buildIssue, rowFromBody, liveUrl, notifyText, SpreadsheetApp, ScriptApp, PropertiesService, UrlFetchApp, MailApp, Logger */
+
+var REPO = "Rishikhesh/portalpic";
+
+function github_(method, path, payload) {
+  var token = PropertiesService.getScriptProperties().getProperty("GITHUB_TOKEN");
+  if (!token) throw new Error("Set the GITHUB_TOKEN script property first.");
+  var res = UrlFetchApp.fetch("https://api.github.com" + path, {
+    method: method,
+    contentType: "application/json",
+    payload: payload ? JSON.stringify(payload) : undefined,
+    headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    muteHttpExceptions: true,
+  });
+  var code = res.getResponseCode();
+  if (code >= 300) throw new Error("GitHub " + method + " " + path + " → " + code + ": " + res.getContentText().slice(0, 300));
+  return JSON.parse(res.getContentText());
+}
+
+function responses_() {
+  var ss = SpreadsheetApp.getActive();
+  return ss.getSheets().filter(function (s) { return /^Form Responses/i.test(s.getName()); })[0] || ss.getSheets()[0];
+}
+
+// Column index (1-based) for a header, created at the end if missing.
+function column_(sheet, re, create) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  for (var i = 0; i < headers.length; i++) if (re.test(String(headers[i]))) return i + 1;
+  if (!create) return 0;
+  sheet.getRange(1, headers.length + 1).setValue(create);
+  return headers.length + 1;
+}
+
+function onFormSubmit(e) {
+  var row = e.range.getRow();
+  var issue = github_("post", "/repos/" + REPO + "/issues", buildIssue(e.namedValues, row));
+  var sheet = e.range.getSheet();
+  sheet.getRange(row, column_(sheet, /^Issue$/, "Issue")).setValue(issue.html_url);
+}
+
+function checkClosed() {
+  var props = PropertiesService.getScriptProperties();
+  var since = props.getProperty("LAST_CHECK") || new Date(Date.now() - 86400000).toISOString();
+  var started = new Date().toISOString();
+  var issues = github_("get", "/repos/" + REPO + "/issues?state=closed&labels=from-form&per_page=50&since=" + encodeURIComponent(since));
+  var sheet = responses_();
+  var emailCol = column_(sheet, /email/i);
+  var notifiedCol = column_(sheet, /^Notified$/, "Notified");
+
+  issues.forEach(function (issue) {
+    if (issue.pull_request) return;
+    var row = rowFromBody(issue.body);
+    if (!row || !emailCol) return;
+    var email = String(sheet.getRange(row, emailCol).getValue()).trim();
+    var notified = sheet.getRange(row, notifiedCol);
+    if (notified.getValue() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+    var comments = github_("get", "/repos/" + REPO + "/issues/" + issue.number + "/comments?per_page=100").map(function (c) { return c.body; });
+    var form = issue.title.replace(/^Preset request:\s*/, "");
+    var msg = notifyText(issue.state_reason, liveUrl(comments), form);
+    MailApp.sendEmail(email, msg.subject, msg.body);
+    notified.setValue(new Date());
+  });
+  props.setProperty("LAST_CHECK", started);
+}
+
+// Run once from the editor: creates the two triggers (safe to re-run).
+function install() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("onFormSubmit").forSpreadsheet(SpreadsheetApp.getActive()).onFormSubmit().create();
+  ScriptApp.newTrigger("checkClosed").timeBased().everyMinutes(15).create();
+  Logger.log("Triggers installed.");
+}
