@@ -1,13 +1,17 @@
 // Pure helpers: no DOM, so they run under `bun test`.
 
 // Portals disagree on whether 1 KB is 1000 or 1024 bytes, so pick the strict side of each limit.
-export const maxBytes = (kb) => Math.floor(kb * 1000);
-export const minBytes = (kb) => Math.ceil(kb * 1024);
+export const maxBytes = (kb: number): number => Math.floor(kb * 1000);
+export const minBytes = (kb: number): number => Math.ceil(kb * 1024);
 
 // Find the highest JPEG quality whose output fits under `max` bytes.
 // `encode(q)` resolves to a Uint8Array. Returns { bytes, quality } or null if even the lowest quality is too big.
-export async function fitQuality(encode, max, lo = 0.05, hi = 0.95, steps = 8) {
-  let best = null;
+export type Fit = { bytes: Uint8Array; quality: number };
+
+export async function fitQuality(
+  encode: (q: number) => Promise<Uint8Array>, max: number, lo = 0.05, hi = 0.95, steps = 8,
+): Promise<Fit | null> {
+  let best: Fit | null = null;
   const top = await encode(hi);
   if (top.length <= max) return { bytes: top, quality: hi };
   for (let i = 0; i < steps; i++) {
@@ -24,11 +28,11 @@ export async function fitQuality(encode, max, lo = 0.05, hi = 0.95, steps = 8) {
 
 // Grow a JPEG to at least `target` bytes by inserting comment (COM) segments right after SOI.
 // Pixels are untouched; portals that enforce a minimum file size only check the byte count.
-export function padJpeg(bytes, target) {
+export function padJpeg(bytes: Uint8Array, target: number): Uint8Array {
   if (bytes.length >= target) return bytes;
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error("not a JPEG");
   let need = target - bytes.length;
-  const segs = [];
+  const segs: Uint8Array[] = [];
   while (need > 0) {
     const data = Math.min(65533, Math.max(1, need - 4)); // segment = 4 header bytes + data
     const seg = new Uint8Array(4 + data).fill(0x20);
@@ -45,7 +49,7 @@ export function padJpeg(bytes, target) {
 }
 
 // Write DPI into the JFIF APP0 header if the encoder emitted one (Chrome/Firefox/Safari do).
-export function setJpegDpi(bytes, dpi) {
+export function setJpegDpi(bytes: Uint8Array, dpi: number): Uint8Array {
   const isJfif = bytes[2] === 0xff && bytes[3] === 0xe0 &&
     String.fromCharCode(...bytes.subarray(6, 11)) === "JFIF\0";
   if (!isJfif) return bytes;

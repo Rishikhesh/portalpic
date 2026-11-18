@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { fitQuality, padJpeg, setJpegDpi, maxBytes, minBytes } from "./compress.js";
+import { fitQuality, padJpeg, setJpegDpi, maxBytes, minBytes } from "./compress";
 
 const jfif = () => {
   const b = new Uint8Array(40);
@@ -9,10 +9,10 @@ const jfif = () => {
 };
 
 test("fitQuality picks the highest quality under the limit", async () => {
-  const enc = async (q) => new Uint8Array(Math.round(q * 1000)); // size grows with quality
+  const enc = async (q: number) => new Uint8Array(Math.round(q * 1000)); // size grows with quality
   const r = await fitQuality(enc, 500);
-  expect(r.bytes.length).toBeLessThanOrEqual(500);
-  expect(r.bytes.length).toBeGreaterThan(490);
+  expect(r!.bytes.length).toBeLessThanOrEqual(500);
+  expect(r!.bytes.length).toBeGreaterThan(490);
 });
 
 test("fitQuality returns null when nothing fits", async () => {

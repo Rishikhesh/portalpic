@@ -1,0 +1,46 @@
+name: Preset request
+description: Ask for a new exam, visa or ID form to be added
+title: "Preset request: "
+labels: ["preset"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks! Presets are only added when an official source states the rules, so the link below matters most.
+  - type: input
+    id: country
+    attributes:
+      label: Country
+      placeholder: India, UK, Canada…
+    validations:
+      required: true
+  - type: input
+    id: portal
+    attributes:
+      label: Exam, visa or form
+      placeholder: e.g. SBI Clerk 2026, UK visa, OCI card
+    validations:
+      required: true
+  - type: dropdown
+    id: field
+    attributes:
+      label: What do you need to upload?
+      multiple: true
+      options: [Photo, Signature, Thumb impression, Handwritten declaration, Other]
+    validations:
+      required: true
+  - type: input
+    id: rules
+    attributes:
+      label: Size rules, if you know them
+      placeholder: e.g. 200 × 230 px, 20–50 KB, JPG
+  - type: input
+    id: source
+    attributes:
+      label: Link to the official notification or upload page
+      placeholder: https://…
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else

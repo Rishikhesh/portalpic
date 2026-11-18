@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks the commit if types, lint, tests or the build fail. Bypass only in emergencies: git commit --no-verify
+exec bun run check
