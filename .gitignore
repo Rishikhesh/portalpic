@@ -30,3 +30,4 @@ dist-ssr
 .superpowers/
 .preset-pr.md
 .preset-needs-info.md
+.clasp.json

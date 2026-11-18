@@ -10,8 +10,9 @@ Bound to the Google Sheet that collects the [request form](https://forms.gle/gWT
 
 ```sh
 bunx @google/clasp login                     # once, opens your browser
-bunx @google/clasp create --type sheets --parentId <SHEET_ID> --rootDir apps-script --title "PortalPic requests"
-bunx @google/clasp push
+bunx @google/clasp create --parentId <SHEET_ID> --rootDir apps-script --title "PortalPic requests"   # no --type: that makes a new Sheet
+git checkout apps-script/appsscript.json   # create overwrites the manifest
+bunx @google/clasp push --force
 ```
 
 Then in the script editor (Extensions → Apps Script from the Sheet):
