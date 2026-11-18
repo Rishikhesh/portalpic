@@ -27,3 +27,4 @@ dist-ssr
 .impeccable/
 .vercel
 .env*
+.superpowers/
