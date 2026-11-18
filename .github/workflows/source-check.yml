@@ -30,4 +30,4 @@ jobs:
           [ -z "$dead" ] && exit 0
           title="Dead official source links"
           if gh issue list -R "$REPO" --state open --search "in:title \"$title\"" --json number -q '.[0].number' | grep -q .; then exit 0; fi
-          gh issue create -R "$REPO" --title "$title" --body "These preset sources no longer exist. Find the new official page, check the rules still match, and update \`src/lib/presets.ts\`:$dead"
+          gh issue create -R "$REPO" --title "$title" --body "These preset sources no longer exist. Find the new official page, check the rules still match, and update \`src/lib/presets.ts\`:$dead"$'\n\n'"Some Indian government sites (e.g. rrbapply.gov.in) answer 404 to servers outside India. Open each link from India before acting; close this issue if they load."
