@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { track } from "@vercel/analytics";
+import { pageview } from "@vercel/analytics";
 import { CircleCheck, CircleX, Circle, Download, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -65,11 +65,14 @@ export function message(spec: Spec, r: Result) {
 
 export const filename = (spec: Spec) => `${spec.id}-${spec.w}x${spec.h}.jpg`;
 
-export function DownloadButton({ spec, result, busy, className }: { spec: Spec; result: Result | null; busy: boolean; className?: string }) {
+// Free-plan analytics only counts page views, so each download is recorded as a visit to /_download/<preset>.
+const countDownload = (id: string) => pageview({ route: "/_download/[preset]", path: `/_download/${id}` });
+
+export function DownloadButton({ spec, result, busy, className, onDownloaded }: { spec: Spec; result: Result | null; busy: boolean; className?: string; onDownloaded?: (id: string) => void }) {
   const ready = !!result && !result.tooBig && result.fits && !busy;
   return (
     <a href={ready ? result!.url : undefined} download={ready ? filename(spec) : undefined} aria-disabled={!ready}
-      onClick={() => track("download", { preset: spec.id })}
+      onClick={() => { countDownload(spec.id); onDownloaded?.(spec.id); }}
       className={cn("flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-[background,opacity] duration-150 hover:bg-white",
         !ready && "pointer-events-none opacity-35", className)}>
       {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}

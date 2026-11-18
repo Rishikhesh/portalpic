@@ -13,6 +13,8 @@ export type Spec = {
   note?: string;
   source?: string;
   official?: boolean;
+  /** Chin-to-crown height as a share of the photo height, from the official rule. Drives the face guide. */
+  faceHeight?: number;
 };
 
 export const presets = PRESETS;
@@ -40,3 +42,13 @@ function clamp(v: number, lo: number, hi: number, fallback: number) {
 }
 
 export const isInk = (s: Spec) => /sign|thumb|declaration/i.test(s.label);
+
+/** Head size the face guide draws when the portal gives no number: a typical passport-style framing. */
+export const DEFAULT_FACE = 0.6;
+export const faceGuide = (s: Spec): number | null => (isInk(s) || s.id === "custom" ? null : s.faceHeight ?? DEFAULT_FACE);
+
+/** All uploads the same exam or form asks for, when there is more than one. */
+export const kitFor = (s: Spec): Spec[] => {
+  const list = s.id === "custom" ? [] : groups[s.group] ?? [];
+  return list.length > 1 ? list : [];
+};

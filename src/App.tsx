@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, MonitorDown } from "lucide-react";
 import { PresetCombobox } from "@/components/PresetCombobox";
 import { Stage } from "@/components/Stage";
 import { Inspector, DownloadButton, message } from "@/components/Inspector";
-import { presets, customSpec, isInk, type Custom } from "@/lib/spec";
+import { presets, customSpec, isInk, kitFor, faceGuide, type Custom } from "@/lib/spec";
+import { KitBar } from "@/components/KitBar";
 import { processImage, loadImage, LoadError, Stale, type Area, type Result } from "@/lib/process";
 import { cn } from "@/lib/utils";
 import { REPO, REQUEST_FORM_URL, requestPresetUrl } from "@/lib/links";
@@ -48,6 +49,9 @@ export default function App() {
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<Set<string>>(() => new Set());
+  const markDone = useCallback((id: string) => setDone((d) => new Set(d).add(id)), []);
+  const install = useInstallPrompt();
   const job = useRef(0);
   const prev = useRef<{ img: ImageBitmap | null; src: string | null; result: Result | null }>({ img: null, src: null, result: null });
 
@@ -121,6 +125,11 @@ export default function App() {
               <ShieldCheck className="size-4 text-pass" /> Processed on your device
             </button>
           </PrivacyDialog>
+          {install && (
+            <button type="button" onClick={install} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-foreground hover:bg-accent" title="Install PortalPic: works offline">
+              <MonitorDown className="size-4" /> Install
+            </button>
+          )}
           <a href={REPO} target="_blank" rel="noopener noreferrer" className="rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground">
             Source
           </a>
@@ -137,9 +146,12 @@ export default function App() {
       </div>
 
       <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="h-[58svh] lg:h-auto lg:min-h-0">
-          <Stage heading={heading(spec)} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
+        <div className="flex h-[58svh] min-w-0 flex-col lg:h-auto lg:min-h-0">
+          <KitBar kit={kitFor(spec)} spec={spec} done={done} onPick={choosePreset} />
+          <div className="min-h-0 flex-1">
+          <Stage heading={heading(spec)} face={faceGuide(spec)} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
             onFile={onFile} onArea={setArea} onRotate={() => setRotation((r) => (r + 90) % 360)} />
+          </div>
         </div>
         <aside className={cn("flex flex-col border-line bg-panel lg:min-h-0 lg:border-l", result ? "pb-32 lg:pb-0" : "")}>
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -154,7 +166,7 @@ export default function App() {
           </footer>
           </div>
           <div className="hidden border-t border-line p-4 lg:block">
-            <DownloadButton spec={spec} result={result} busy={busy} className="w-full" />
+            <DownloadButton spec={spec} result={result} busy={busy} onDownloaded={markDone} className="w-full" />
           </div>
         </aside>
       </main>
@@ -167,9 +179,24 @@ export default function App() {
               {result.tooBig ? msg.text : `${(result.bytes / 1024).toFixed(1)} KB · ${spec.w}×${spec.h} · ${msg.tone === "fail" ? "outside limit" : "within limit"}`}
             </p>
           )}
-          <DownloadButton spec={spec} result={result} busy={busy} className="w-full" />
+          <DownloadButton spec={spec} result={result} busy={busy} onDownloaded={markDone} className="w-full" />
         </div>
       )}
     </div>
   );
+}
+
+type InstallEvent = Event & { prompt: () => Promise<void> };
+
+// Chrome/Edge/Android offer installation through this event; Safari users use Share → Add to Home Screen.
+function useInstallPrompt() {
+  const [evt, setEvt] = useState<InstallEvent | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => { e.preventDefault(); setEvt(e as InstallEvent); };
+    const gone = () => setEvt(null);
+    window.addEventListener("beforeinstallprompt", on);
+    window.addEventListener("appinstalled", gone);
+    return () => { window.removeEventListener("beforeinstallprompt", on); window.removeEventListener("appinstalled", gone); };
+  }, []);
+  return evt ? () => { evt.prompt().finally(() => setEvt(null)); } : null;
 }

@@ -9,7 +9,7 @@ const POINTS: { icon: typeof CloudOff; title: string; body: ReactNode }[] = [
   { icon: HardDrive, title: "Nothing is saved", body: "Your photo lives only in this tab's memory and is gone when you close it. The only thing remembered on this device is the last form you picked." },
   { icon: EyeOff, title: "Only anonymous counts", body: "We count visits and downloads with cookieless analytics: which page, country and device type. Never your photo, its contents or its size. No accounts, ads or cookies." },
   { icon: ShieldCheck, title: "Locked to this site", body: "The page's security policy stops it from contacting any other website, and nothing in the code sends your photo anywhere." },
-  { icon: PlaneTakeoff, title: "Check it yourself", body: "Once this page has loaded, turn on airplane mode. Everything still works, because nothing needs the internet." },
+  { icon: PlaneTakeoff, title: "Check it yourself", body: "Once this page has loaded, turn on airplane mode. Everything still works, even after a reload, because nothing needs the internet." },
   { icon: Code2, title: "Open source", body: <>Every line of code is public on <a className="text-foreground underline" href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a> under the MIT licence.</> },
 ];
 

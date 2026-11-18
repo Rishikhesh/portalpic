@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import Cropper from "react-easy-crop";
-import { ImagePlus, RotateCw, ZoomIn, ZoomOut, Replace } from "lucide-react";
+import { ImagePlus, RotateCw, ZoomIn, ZoomOut, Replace, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { Area } from "@/lib/process";
@@ -9,6 +9,8 @@ import { PrivacyDialog } from "@/components/PrivacyDialog";
 
 type Props = {
   heading: string;
+  /** Chin-to-crown share of the frame for the face guide, or null for signatures. */
+  face: number | null;
   src: string | null;
   aspect: number;
   outW: number;
@@ -22,12 +24,13 @@ type Props = {
 
 const toolBtn = "grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
-export function Stage({ heading, src, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
+export function Stage({ heading, face, src, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [frame, setFrame] = useState<{ width: number; height: number } | null>(null);
   const [over, setOver] = useState(false);
+  const [guide, setGuide] = useState(true);
 
   const pick = () => input.current?.click();
   const take = (f?: File | null) => { if (f) { setCrop({ x: 0, y: 0 }); setZoom(1); onFile(f); } };
@@ -72,6 +75,8 @@ export function Stage({ heading, src, aspect, outW, outH, rotation, error, onFil
             </div>
           )}
 
+          {frame && face && guide && <FaceGuide w={frame.width} h={frame.height} face={face} />}
+
           <div className="absolute inset-x-0 bottom-0 flex h-16 items-center justify-center px-3">
             <div className="flex items-center gap-1 rounded-lg border border-line bg-panel p-1 shadow-[0_8px_24px_-8px_rgb(0_0_0/0.6)]">
               <button type="button" aria-label="Zoom out" className={toolBtn} onClick={() => setZoom((z) => Math.max(1, z - 0.25))}><ZoomOut className="size-4" /></button>
@@ -79,11 +84,30 @@ export function Stage({ heading, src, aspect, outW, outH, rotation, error, onFil
               <button type="button" aria-label="Zoom in" className={toolBtn} onClick={() => setZoom((z) => Math.min(5, z + 0.25))}><ZoomIn className="size-4" /></button>
               <span className="mx-1 h-5 w-px bg-line" />
               <button type="button" aria-label="Rotate 90 degrees" className={toolBtn} onClick={onRotate}><RotateCw className="size-4" /></button>
+              {face && (
+                <button type="button" aria-pressed={guide} aria-label="Face guide" title="Face guide" onClick={() => setGuide((g) => !g)}
+                  className={cn(toolBtn, guide && "bg-accent text-foreground")}><ScanFace className="size-4" /></button>
+              )}
               <button type="button" aria-label="Replace image" className={toolBtn} onClick={pick}><Replace className="size-4" /></button>
             </div>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Dashed head outline over the crop frame: chin-to-crown = face × frame height, sitting slightly above centre.
+function FaceGuide({ w, h, face }: { w: number; h: number; face: number }) {
+  const rh = (h * face) / 2, rw = rh * 0.74, cy = h * 0.47;
+  return (
+    <div aria-hidden className="pointer-events-none absolute left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ top: "calc(50% - 32px)", width: w, height: h }}>
+      <svg width={w} height={h} className="overflow-visible">
+        <ellipse cx={w / 2} cy={cy} rx={rw} ry={rh} fill="none" stroke="#9db6ff" strokeWidth="1.5" strokeDasharray="6 5" />
+        <line x1={w / 2 - rw * 0.75} x2={w / 2 + rw * 0.75} y1={cy - rh * 0.08} y2={cy - rh * 0.08} stroke="#9db6ff" strokeWidth="1" strokeDasharray="2 4" opacity="0.8" />
+      </svg>
+      <span className="absolute left-1/2 -translate-x-1/2 rounded-[4px] bg-[#0b0c0e]/80 px-1.5 py-0.5 text-[11px] whitespace-nowrap text-[#9db6ff]"
+        style={{ top: Math.max(4, cy - rh - 24) }}>Fit the head inside, eyes on the line</span>
     </div>
   );
 }

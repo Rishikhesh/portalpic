@@ -13,3 +13,14 @@ test("every preset is well-formed", () => {
     expect(p.minKB).toBeLessThan(p.maxKB);
   }
 });
+
+test("kits and face guides", async () => {
+  const { kitFor, faceGuide, presets, DEFAULT_FACE } = await import("./spec");
+  const by = (id: string) => presets.find((p) => p.id === id)!;
+  expect(kitFor(by("ibps-photo")).map((p) => p.id)).toEqual(["ibps-photo", "ibps-signature", "ibps-thumb", "ibps-declaration"]);
+  expect(kitFor(by("ssc-signature"))).toEqual([]); // a single upload is not a kit
+  expect(faceGuide(by("ibps-signature"))).toBeNull(); // no face on a signature
+  expect(faceGuide(by("ca-passport-online"))).toBe(0.475); // official 45–50%
+  expect(faceGuide(by("ibps-photo"))).toBe(DEFAULT_FACE);
+  for (const p of presets.filter((x) => x.faceHeight)) { expect(p.faceHeight!).toBeGreaterThan(0.3); expect(p.faceHeight!).toBeLessThan(0.95); }
+});
