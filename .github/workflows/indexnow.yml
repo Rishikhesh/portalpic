@@ -1,0 +1,18 @@
+# After each production deploy, tell Bing (and other IndexNow engines) which pages exist, so new or
+# changed presets show up in Bing, Copilot and ChatGPT search quickly. The key file is public by design.
+name: IndexNow
+
+on:
+  deployment_status:
+
+jobs:
+  ping:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - run: |
+          set -euo pipefail
+          urls=$(curl -fsSL https://portalpic.com/sitemap.xml | sed -nE 's#.*<loc>([^<]+)</loc>.*#"\1"#p' | paste -sd, -)
+          curl -fsS -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' \
+            -d "{\"host\":\"portalpic.com\",\"key\":\"4fb922afccdb0e14f0d85f2c89972306\",\"keyLocation\":\"https://portalpic.com/4fb922afccdb0e14f0d85f2c89972306.txt\",\"urlList\":[$urls]}" -w '%{http_code}\n'

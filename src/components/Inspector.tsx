@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import type { Spec, Custom } from "@/lib/spec";
 import type { Result } from "@/lib/process";
 import { cn } from "@/lib/utils";
+import { faqs, CHECKED } from "@/lib/seo";
 
 type Mark = "idle" | "pass" | "fail";
 
@@ -203,6 +204,20 @@ export function Inspector({ spec, result, busy, clean, onClean, custom, onCustom
             msg.tone === "pass" ? "text-pass" : msg.tone === "warn" ? "text-warn" : "text-fail")}>{msg.text}</p>
         )}
       </Section>
+
+      {faqs(spec).length > 0 && (
+        <Section title={`About the ${spec.group} ${spec.label.toLowerCase()}`}>
+          <dl className="space-y-4">
+            {faqs(spec).map(({ q, a }) => (
+              <div key={q}>
+                <dt className="text-[14px] font-medium text-foreground">{q}</dt>
+                <dd className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{a}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 text-[12px] text-muted-foreground">Rules checked in {CHECKED}. Portals change them: check your notification before uploading.</p>
+        </Section>
+      )}
     </div>
   );
 }

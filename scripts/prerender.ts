@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { PRESETS } from "../src/lib/presets";
 import type { Spec } from "../src/lib/spec";
-import { SITE, HOME_TITLE, HOME_DESCRIPTION, pageTitle, pageDescription, heading, range } from "../src/lib/seo";
+import { SITE, HOME_TITLE, HOME_DESCRIPTION, CHECKED, pageTitle, pageDescription, heading, range, faqs, factLine } from "../src/lib/seo";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const template = readFileSync("dist/index.html", "utf8");
@@ -48,14 +48,37 @@ writeFileSync("dist/index.html", page(HOME_TITLE, HOME_DESCRIPTION, `${SITE}/`,
 for (const p of PRESETS as Spec[]) {
   mkdirSync(`dist/${p.id}`, { recursive: true });
   const rules = `${p.w} × ${p.h} px${p.exact ? " (exact)" : ""} · ${range(p)} · JPEG${p.dpi ? ` · ${p.dpi} DPI` : ""}`;
+  const qa = faqs(p);
+  const faqLd = { "@context": "https://schema.org", "@type": "FAQPage",
+    mainEntity: qa.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) };
   writeFileSync(`dist/${p.id}/index.html`, page(pageTitle(p), pageDescription(p), `${SITE}/${p.id}`,
-    body(heading(p), [esc(rules), esc(p.note ?? ""), `<a href="${esc(p.source ?? "")}">Official source</a>`])));
+    body(heading(p), [esc(rules), esc(p.note ?? ""), `<a href="${esc(p.source ?? "")}">Official source</a> · checked ${CHECKED}`,
+      ...qa.map(({ q, a }) => `<strong>${esc(q)}</strong><br>${esc(a)}`)]),
+    `<script type="application/ld+json">${JSON.stringify(faqLd).replace(/</g, "\\u003c")}</script>`));
 }
 
 const urls = ["/", ...PRESETS.map((p) => `/${p.id}`)];
 writeFileSync("dist/sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url><loc>${SITE}${u === "/" ? "/" : u}</loc></url>`).join("\n")}
+${urls.map((u) => `  <url><loc>${SITE}${u}</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>`).join("\n")}
 </urlset>
 `);
-console.log(`prerendered ${PRESETS.length + 1} pages and sitemap.xml`);
+// Plain-text summary for AI assistants and search agents (https://llmstxt.org).
+const llms = [
+  "# PortalPic",
+  "",
+  `> Free tool at ${SITE} that resizes and compresses photos and signatures to the exact pixel size and file-size (KB) limits of exam, visa and passport upload portals. It runs entirely in the browser: images are never uploaded. Every preset links its official source; rules checked ${CHECKED}.`,
+  "",
+  "## Presets",
+  "",
+  ...PRESETS.map((p) => `- [${p.group} ${p.label}](${SITE}/${p.id}): ${factLine(p)}${p.source ? ` Official source: ${p.source}` : ""}`),
+  "",
+  "## About",
+  "",
+  `- [Source code (MIT)](https://github.com/Rishikhesh/portalpic)`,
+  `- [Request a preset](https://forms.gle/gWTPthBeRC2ScrZy9)`,
+  "",
+].join("\n");
+writeFileSync("dist/llms.txt", llms);
+
+console.log(`prerendered ${PRESETS.length + 1} pages, sitemap.xml and llms.txt`);

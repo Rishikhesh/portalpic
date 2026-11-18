@@ -19,9 +19,9 @@ export const PRESETS: Spec[] = [
     note: "No pixel size given (about 6 × 2 cm). SSC photos are taken live by webcam, so there's no photo upload.", source: "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf", official: true },
 
   { id: "upsc-photo", group: "UPSC", label: "Photo", w: 350, h: 450, minKB: 20, maxKB: 200, faceHeight: 0.78,
-    note: "Face ≥ 75% of the photo, both ears visible, white background. A live photo is also taken and matched.", source: "https://upsconline.nic.in/ngrp/assets/PDF/instruction-photo-signature-upload-upsc.pdf", official: true },
+    note: "Face ≥ 75% of the photo, both ears visible, white background. A live photo is also taken and matched.", source: "https://upsconline.nic.in/caf/assets/PDF/instruction-photo-signature-upload-upsc.pdf", official: true },
   { id: "upsc-signature", group: "UPSC", label: "Signature (3 times)", w: 350, h: 500, minKB: 20, maxKB: 100,
-    note: "Sign three times, one below the other, black ink on white paper, as one image (350–500 px).", source: "https://upsconline.nic.in/ngrp/assets/PDF/instruction-photo-signature-upload-upsc.pdf", official: true },
+    note: "Sign three times, one below the other, black ink on white paper, as one image (350–500 px).", source: "https://upsconline.nic.in/caf/assets/PDF/instruction-photo-signature-upload-upsc.pdf", official: true },
 
   { id: "rrb-signature", group: "RRB (Railways)", label: "Signature", w: 280, h: 120, minKB: 30, maxKB: 49, dpi: 200,
     note: "At least 140×60 px, 100+ DPI, cursive in black ink. RRB photos are taken live, so there's no photo upload.", source: "https://www.rrbapply.gov.in/assets/forms/CEN_06_2026_NTPC_G.pdf", official: true },
