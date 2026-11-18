@@ -3,16 +3,19 @@
 name: IndexNow
 
 on:
-  deployment_status:
+  status: # Vercel reports deploys as commit statuses with context "Vercel"
 
 jobs:
   ping:
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    if: >-
+      github.event.state == 'success' && github.event.context == 'Vercel' &&
+      contains(github.event.branches.*.name, 'main')
     runs-on: ubuntu-latest
     permissions: {}
     steps:
       - run: |
           set -euo pipefail
+          sleep 30 # the status lands a few seconds before the new files are live
           urls=$(curl -fsSL https://portalpic.com/sitemap.xml | sed -nE 's#.*<loc>([^<]+)</loc>.*#"\1"#p' | paste -sd, -)
           curl -fsS -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' \
             -d "{\"host\":\"portalpic.com\",\"key\":\"4fb922afccdb0e14f0d85f2c89972306\",\"keyLocation\":\"https://portalpic.com/4fb922afccdb0e14f0d85f2c89972306.txt\",\"urlList\":[$urls]}" -w '%{http_code}\n'
