@@ -11,12 +11,12 @@
 Followed by the preset agent (`.github/workflows/preset-agent.yml`) after the owner labels an issue `approved`.
 
 1. **Research.** Find the official notification PDF or the portal's own upload instructions for the exact form asked for. Only government or official portal domains count; resizer blogs and coaching sites do not. Record: pixel size (exact or min/max), KB range, format, DPI, and the human rules (background, face size). Quote each line you rely on with its URL.
-2. **No official source → stop.** Comment on the issue with what you searched and found, run `gh issue edit <n> --add-label needs-info`, and do not open a PR.
+2. **No official source → stop.** Write `.preset-needs-info.md` in the repo root (not committed) saying what you searched and found, and change nothing else. The workflow comments it on the issue and labels it `needs-info`.
 3. **Choose the values.** `exact: true` only when the portal states the pixels. Otherwise pick the smallest size that satisfies the rules at the right shape, and say so in the PR. KB in the preset is what the notice says; `compress.ts` already applies the strict reading.
 4. **Test first.** In `src/lib/presets.test.ts`, add a test named `preset <id> matches the official notice` asserting the new entry's `w`, `h`, `minKB`, `maxKB`, `exact`, `dpi` and `source`. Run `bun test src/lib/presets.test.ts` and see it fail.
 5. **Add the preset** to `src/lib/presets.ts` in its group (or a new group named after the country or portal), with `note`, `source` and `official: true`. Ids are lowercase kebab-case, e.g. `sbi-clerk-photo`.
 6. **Check.** `bun run check` must pass.
-7. **PR.** Branch `claude/issue-<n>-<id>`, one commit, then `gh pr create` with this body:
+7. **Hand off.** Commit the test and the preset in one commit on the current branch and push it. Then write `.preset-pr.md` in the repo root (not committed): the first line is the PR title (`# Add preset: <Form> <upload>`), the rest is this body. The workflow checks it and opens the PR.
 
 ```
 Adds the <Form> <upload> preset.

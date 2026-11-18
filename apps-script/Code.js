@@ -1,6 +1,6 @@
 // PortalPic request form → GitHub issues, and an email to the requester when their issue closes.
 // Bound to the form's response Sheet. Setup: see README.md in this folder.
-/* global buildIssue, rowFromBody, liveUrl, notifyText, SpreadsheetApp, ScriptApp, PropertiesService, UrlFetchApp, MailApp, Logger */
+/* global buildIssue, findRow, liveUrl, notifyText, decideNotify, SpreadsheetApp, ScriptApp, PropertiesService, UrlFetchApp, MailApp, Logger */
 
 var REPO = "Rishikhesh/portalpic";
 
@@ -43,27 +43,43 @@ function onFormSubmit(e) {
 function checkClosed() {
   var props = PropertiesService.getScriptProperties();
   var since = props.getProperty("LAST_CHECK") || new Date(Date.now() - 86400000).toISOString();
-  var started = new Date().toISOString();
-  var issues = github_("get", "/repos/" + REPO + "/issues?state=closed&labels=from-form&per_page=50&since=" + encodeURIComponent(since));
+  var now = Date.now();
+  var nextSince = new Date(now).toISOString();
   var sheet = responses_();
   var emailCol = column_(sheet, /email/i);
+  var issueCol = column_(sheet, /^Issue$/, "Issue");
   var notifiedCol = column_(sheet, /^Notified$/, "Notified");
+  if (!emailCol) return;
+  var issueLinks = sheet.getRange(1, issueCol, sheet.getLastRow(), 1).getValues().map(function (r) { return r[0]; });
 
-  issues.forEach(function (issue) {
-    if (issue.pull_request) return;
-    var row = rowFromBody(issue.body);
-    if (!row || !emailCol) return;
-    var email = String(sheet.getRange(row, emailCol).getValue()).trim();
-    var notified = sheet.getRange(row, notifiedCol);
-    if (notified.getValue() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+  for (var page = 1; page <= 10; page++) {
+    var issues = github_("get", "/repos/" + REPO + "/issues?state=closed&labels=from-form&sort=updated&direction=asc&per_page=100&page=" + page + "&since=" + encodeURIComponent(since));
+    issues.forEach(function (issue) {
+      try {
+        if (issue.pull_request) return;
+        var row = findRow(issueLinks, issue.html_url);
+        if (!row) return;
+        var email = String(sheet.getRange(row, emailCol).getValue()).trim();
+        var notified = sheet.getRange(row, notifiedCol);
+        if (notified.getValue() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
 
-    var comments = github_("get", "/repos/" + REPO + "/issues/" + issue.number + "/comments?per_page=100").map(function (c) { return c.body; });
-    var form = issue.title.replace(/^Preset request:\s*/, "");
-    var msg = notifyText(issue.state_reason, liveUrl(comments), form);
-    MailApp.sendEmail(email, msg.subject, msg.body);
-    notified.setValue(new Date());
-  });
-  props.setProperty("LAST_CHECK", started);
+        var comments = github_("get", "/repos/" + REPO + "/issues/" + issue.number + "/comments?per_page=100").map(function (c) { return c.body; });
+        var url = liveUrl(comments);
+        var decision = decideNotify(issue.state_reason, url, Date.parse(issue.closed_at), now);
+        if (decision === "wait") { // look at this issue again next run
+          if (issue.closed_at < nextSince) nextSince = issue.closed_at;
+          return;
+        }
+        var msg = notifyText(decision === "couldnt" ? "not_planned" : "completed", decision === "live" ? url : null, issue.title.replace(/^Preset request:\s*/, ""));
+        MailApp.sendEmail(email, msg.subject, msg.body);
+        notified.setValue(new Date());
+      } catch (err) {
+        Logger.log("Issue #" + issue.number + ": " + err); // retried on a later run only if it changes again
+      }
+    });
+    if (issues.length < 100) break;
+  }
+  props.setProperty("LAST_CHECK", nextSince);
 }
 
 // Run once from the editor: creates the two triggers (safe to re-run).

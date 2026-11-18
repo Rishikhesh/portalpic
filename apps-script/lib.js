@@ -11,6 +11,11 @@ function pick_(answers, re) {
   return "";
 }
 
+// Stop answers from pinging people (@name) or linking issues (#12) under the owner's account.
+function quiet_(text) {
+  return text.replace(/@(?=\w)/g, "@\u200b").replace(/#(?=\d)/g, "#\u200b");
+}
+
 // Form answers → GitHub issue. Emails never go into the issue: only the Sheet row number does.
 function buildIssue(answers, row) {
   var country = pick_(answers, /country/i);
@@ -19,16 +24,11 @@ function buildIssue(answers, row) {
   var lines = [];
   for (var k in answers) {
     if (/email|timestamp/i.test(k)) continue;
-    var v = first_(answers[k]).trim();
+    var v = quiet_(first_(answers[k]).trim());
     if (v) lines.push("**" + k + "**\n" + v);
   }
   lines.push("_Submitted through the Google Form._\n\nSheet row: " + row);
   return { title: title, body: lines.join("\n\n"), labels: ["preset", "from-form"] };
-}
-
-function rowFromBody(body) {
-  var m = /^Sheet row: (\d+)\s*$/m.exec(body || "");
-  return m ? Number(m[1]) : null;
 }
 
 // The newest "Live at" link the shipped workflow commented.
@@ -44,6 +44,9 @@ function liveUrl(comments) {
 
 function notifyText(stateReason, url, form) {
   var name = form || "your form";
+  if (stateReason === "completed" && !url) {
+    return { subject: "Your PortalPic request for " + name, body: "Hi,\n\nYour request for " + name + " has been handled. Open " + SITE + " and search for it.\n\nPortalPic" };
+  }
   if (stateReason === "completed" && url) {
     return {
       subject: "PortalPic now supports " + name,
@@ -54,4 +57,18 @@ function notifyText(stateReason, url, form) {
     subject: "We couldn't add " + name + " yet",
     body: "Hi,\n\nThanks for your request. We couldn't find official rules for " + name + " that we could rely on, so we haven't added a preset yet. If you have a link to the official notification, reply with it and we'll take another look.\n\nMeanwhile, you can use the Custom size option at " + SITE + "\n\nPortalPic",
   };
+}
+
+// What to tell the requester about a closed issue. The "Live at" comment lands shortly after the
+// issue closes, so a completed issue without it waits up to an hour before a neutral message.
+function decideNotify(stateReason, url, closedAtMs, nowMs) {
+  if (stateReason !== "completed") return "couldnt";
+  if (url) return "live";
+  return nowMs - closedAtMs < 3600e3 ? "wait" : "handled";
+}
+
+// 1-based row whose Issue cell holds this issue's link, or null.
+function findRow(columnValues, issueUrl) {
+  for (var i = 0; i < columnValues.length; i++) if (String(columnValues[i]) === issueUrl) return i + 1;
+  return null;
 }
