@@ -32,6 +32,8 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - run: sudo apt-get install -y -qq poppler-utils >/dev/null  # pdftotext, for official PDF notices
+
       # The agent gets no gh CLI and no GitHub token in its shell: it researches, edits, tests and commits,
       # and writes its PR description (or a "needs info" note) to a file. The next step acts on that file.
       - id: agent
@@ -46,7 +48,7 @@ jobs:
           branch_name_template: "{{prefix}}issue-{{entityNumber}}-{{description}}"
           claude_args: >-
             --max-turns 80
-            --allowedTools "WebSearch,WebFetch,Bash(bun run check),Bash(bun test:*)"
+            --allowedTools "WebSearch,WebFetch,Bash(sh scripts/pdf-text.sh:*),Bash(bun run check),Bash(bun test:*)"
           prompt: |
             You are adding a preset to PortalPic for issue #${{ github.event.issue.number }} in ${{ github.repository }}.
 

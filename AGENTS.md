@@ -10,7 +10,7 @@
 
 Followed by the preset agent (`.github/workflows/preset-agent.yml`) after the owner labels an issue `approved`.
 
-1. **Research.** Find the official notification PDF or the portal's own upload instructions for the exact form asked for. Only government or official portal domains count; resizer blogs and coaching sites do not. Record: pixel size (exact or min/max), KB range, format, DPI, and the human rules (background, face size). Quote each line you rely on with its URL.
+1. **Research.** Find the official notification PDF or the portal's own upload instructions for the exact form asked for. Only government or official portal domains count; resizer blogs and coaching sites do not. Record: pixel size (exact or min/max), KB range, format, DPI, and the human rules (background, face size). Quote each line you rely on with its URL. Official notices are usually PDFs that web fetch can't read: run `sh scripts/pdf-text.sh <https URL of the PDF>` to get their text.
 2. **No official source → stop.** Write `.preset-needs-info.md` in the repo root (not committed) saying what you searched and found, and change nothing else. The workflow comments it on the issue and labels it `needs-info`.
 3. **Choose the values.** `exact: true` only when the portal states the pixels. Otherwise pick the smallest size that satisfies the rules at the right shape, and say so in the PR. KB in the preset is what the notice says; `compress.ts` already applies the strict reading.
 4. **Test first.** In `src/lib/presets.test.ts`, add a test named `preset <id> matches the official notice` asserting the new entry's `w`, `h`, `minKB`, `maxKB`, `exact`, `dpi` and `source`. Run `bun test src/lib/presets.test.ts` and see it fail.
