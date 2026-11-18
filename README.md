@@ -18,7 +18,7 @@ Application portals reject uploads that are a few KB off, so people end up uploa
 - **Sets DPI** in the file header where a portal asks for it (IBPS thumb and declaration, PAN, RRB).
 - **Strips EXIF metadata,** including GPS location.
 - **Safe with huge files:** it reads the image size from the file header and refuses anything over 64 megapixels or 60 MB before decoding, so a small file that expands to gigabytes can't crash the tab.
-- **Nothing can be uploaded:** the Content Security Policy in [`vercel.json`](vercel.json) sets `connect-src 'none'`, so the page cannot send data anywhere.
+- **Your photo never leaves the device.** The only network traffic is cookieless, anonymous visit and download counts (Vercel Web Analytics). The Content Security Policy in [`vercel.json`](vercel.json) sets `connect-src 'self'`, so the page cannot contact any other site.
 
 ## Presets
 

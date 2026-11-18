@@ -8,6 +8,7 @@ import { processImage, loadImage, LoadError, Stale, type Area, type Result } fro
 import { cn } from "@/lib/utils";
 import { REPO, REQUEST_FORM_URL, requestPresetUrl } from "@/lib/links";
 import { PrivacyDialog } from "@/components/PrivacyDialog";
+import { HOME_TITLE, heading, pagePath, pageTitle } from "@/lib/seo";
 
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -27,6 +28,8 @@ function Logo() {
 
 export default function App() {
   const [presetId, setPresetId] = useState(() => {
+    const fromUrl = location.pathname.split("/")[1]; // /ibps-photo opens that preset
+    if (presets.some((p) => p.id === fromUrl)) return fromUrl;
     const last = store.get("pp.preset");
     return last && (last === "custom" || presets.some((p) => p.id === last)) ? last : presets[0].id;
   });
@@ -49,9 +52,12 @@ export default function App() {
   const prev = useRef<{ img: ImageBitmap | null; src: string | null; result: Result | null }>({ img: null, src: null, result: null });
 
   const choosePreset = (id: string) => {
-    setPresetId(id); store.set("pp.preset", id); setTargetKB(null);
-    setClean(isInk(id === "custom" ? customSpec(custom) : presets.find((p) => p.id === id)!));
+    const next = id === "custom" ? customSpec(custom) : presets.find((p) => p.id === id)!;
+    setPresetId(id); store.set("pp.preset", id); setTargetKB(null); setClean(isInk(next));
+    history.replaceState(null, "", pagePath(next)); // shareable link to this preset
   };
+
+  useEffect(() => { document.title = location.pathname === "/" ? HOME_TITLE : pageTitle(spec); }, [spec]);
 
   const onFile = useCallback(async (f: File) => {
     if (!f.type.startsWith("image/") && !/\.(heic|heif)$/i.test(f.name)) { setError("That isn't an image. Choose a JPG or PNG."); return; }
@@ -104,7 +110,7 @@ export default function App() {
   return (
     <div className="flex min-h-svh flex-col lg:h-svh">
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel px-4">
-        <a href="./" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
+        <a href="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
           <Logo /> PortalPic
         </a>
         <span className="hidden h-5 w-px bg-line lg:block" />
@@ -132,7 +138,7 @@ export default function App() {
 
       <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="h-[58svh] lg:h-auto lg:min-h-0">
-          <Stage src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
+          <Stage heading={heading(spec)} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
             onFile={onFile} onArea={setArea} onRotate={() => setRotation((r) => (r + 90) % 360)} />
         </div>
         <aside className={cn("flex flex-col border-line bg-panel lg:min-h-0 lg:border-l", result ? "pb-32 lg:pb-0" : "")}>

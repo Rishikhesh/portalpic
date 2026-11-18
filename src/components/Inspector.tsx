@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { track } from "@vercel/analytics";
 import { CircleCheck, CircleX, Circle, Download, ExternalLink, LoaderCircle, TriangleAlert } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -68,6 +69,7 @@ export function DownloadButton({ spec, result, busy, className }: { spec: Spec; 
   const ready = !!result && !result.tooBig && result.fits && !busy;
   return (
     <a href={ready ? result!.url : undefined} download={ready ? filename(spec) : undefined} aria-disabled={!ready}
+      onClick={() => track("download", { preset: spec.id })}
       className={cn("flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-[background,opacity] duration-150 hover:bg-white",
         !ready && "pointer-events-none opacity-35", className)}>
       {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}

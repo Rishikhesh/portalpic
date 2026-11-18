@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { PrivacyDialog } from "@/components/PrivacyDialog";
 
 type Props = {
+  heading: string;
   src: string | null;
   aspect: number;
   outW: number;
@@ -21,7 +22,7 @@ type Props = {
 
 const toolBtn = "grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
-export function Stage({ src, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
+export function Stage({ heading, src, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -46,8 +47,8 @@ export function Stage({ src, aspect, outW, outH, rotation, error, onFile, onArea
             <div className="mb-5 grid size-14 place-items-center rounded-xl border border-line-strong bg-panel text-muted-foreground">
               <ImagePlus className="size-6" strokeWidth={1.6} />
             </div>
-            <h2 className="text-[19px] font-semibold tracking-[-0.01em]">Drop a photo or signature</h2>
-            <p className="mt-1.5 text-[14px] text-muted-foreground">It's resized and compressed here, in your browser. Nothing is uploaded or saved.{" "}
+            <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-balance">{heading}</h1>
+            <p className="mt-1.5 text-[14px] text-muted-foreground">Drop a photo or paste one. It's resized and compressed here, in your browser. Nothing is uploaded or saved.{" "}
               <PrivacyDialog><button type="button" className="text-foreground underline">How we know</button></PrivacyDialog></p>
             <Button onClick={pick} className="mt-6 h-11 rounded-md px-5 text-[15px] font-semibold">Choose image</Button>
             <p className="mt-3 font-mono text-[12px] text-muted-foreground">JPG · PNG · HEIC from iPhone Photos · or paste</p>

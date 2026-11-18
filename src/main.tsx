@@ -4,6 +4,10 @@ import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./index.css";
 import App from "./App";
+import { inject } from "@vercel/analytics";
+
+// Cookieless page-view counts, sent only to this site (/_vercel/insights). Never image data.
+inject();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

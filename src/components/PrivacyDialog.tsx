@@ -3,12 +3,12 @@ import { CloudOff, EyeOff, HardDrive, PlaneTakeoff, Code2, ShieldCheck } from "l
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { REPO } from "@/lib/links";
 
-// Every claim here must stay true: the CSP in vercel.json (connect-src 'none') is what enforces "no uploads".
+// Every claim here must stay true: the CSP in vercel.json (connect-src 'self') stops the page talking to any other site.
 const POINTS: { icon: typeof CloudOff; title: string; body: ReactNode }[] = [
   { icon: CloudOff, title: "No uploads, no server", body: "Your photo is cropped, resized and compressed by your own browser. There is no server that receives images. The site is static files and nothing else." },
   { icon: HardDrive, title: "Nothing is saved", body: "Your photo lives only in this tab's memory and is gone when you close it. The only thing remembered on this device is the last form you picked." },
-  { icon: EyeOff, title: "No tracking", body: "No accounts, no analytics, no ads, no cookies." },
-  { icon: ShieldCheck, title: "Blocked by design", body: "The page's security policy forbids it from sending data anywhere, so even a bug couldn't upload your photo." },
+  { icon: EyeOff, title: "Only anonymous counts", body: "We count visits and downloads with cookieless analytics: which page, country and device type. Never your photo, its contents or its size. No accounts, ads or cookies." },
+  { icon: ShieldCheck, title: "Locked to this site", body: "The page's security policy stops it from contacting any other website, and nothing in the code sends your photo anywhere." },
   { icon: PlaneTakeoff, title: "Check it yourself", body: "Once this page has loaded, turn on airplane mode. Everything still works, because nothing needs the internet." },
   { icon: Code2, title: "Open source", body: <>Every line of code is public on <a className="text-foreground underline" href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a> under the MIT licence.</> },
 ];
