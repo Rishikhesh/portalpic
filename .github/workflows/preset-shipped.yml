@@ -1,0 +1,27 @@
+# After the owner merges a preset PR, tell each linked issue where the preset is live.
+# The Google Form notifier (apps-script/) reads this comment to email form requesters.
+name: Preset shipped
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  reply:
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          id=$(printf '%s\n' "$BODY" | sed -nE 's/^Preset-Id:[[:space:]]*([a-z0-9-]+).*/\1/p' | head -1)
+          if [ -n "$id" ]; then msg="🚀 Live at https://portalpic.com/$id (shipped in #$PR)."; else msg="🚀 Shipped in #$PR."; fi
+          for n in $(gh pr view "$PR" -R "$REPO" --json closingIssuesReferences -q '.closingIssuesReferences[].number'); do
+            gh issue comment "$n" -R "$REPO" --body "$msg"
+          done
