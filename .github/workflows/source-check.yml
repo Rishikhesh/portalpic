@@ -23,7 +23,7 @@ jobs:
           set -uo pipefail
           dead=""
           while read -r u; do
-            code=$(curl -s -o /dev/null -L --max-time 30 -A "Mozilla/5.0 PortalPic source check" -w '%{http_code}' "$u")
+            code=$(curl -s -o /dev/null -L --max-time 30 -A "Mozilla/5.0 PortalPic source check" -w '%{http_code}' "$u" || true)
             echo "$code $u"
             if [ "$code" = 404 ] || [ "$code" = 410 ]; then dead="$dead"$'\n'"- $u ($code)"; fi
           done < <(grep -oE 'source: "https://[^"]+"' src/lib/presets.ts | sed -E 's/source: "(.*)"/\1/' | sort -u)
