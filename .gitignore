@@ -25,3 +25,5 @@ dist-ssr
 
 # Design tool working files and review screenshots
 .impeccable/
+.vercel
+.env*
