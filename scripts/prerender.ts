@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { PRESETS } from "../src/lib/presets";
 import type { Spec } from "../src/lib/spec";
-import { SITE, HOME_TITLE, HOME_DESCRIPTION, CHECKED, pageTitle, pageDescription, heading, range, faqs, factLine } from "../src/lib/seo";
+import { SITE, HOME_TITLE, HOME_DESCRIPTION, CHECKED, PDF_TITLE, PDF_DESCRIPTION, PDF_FAQS, pageTitle, pageDescription, heading, range, faqs, factLine } from "../src/lib/seo";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const template = readFileSync("dist/index.html", "utf8");
@@ -39,7 +39,9 @@ const app = {
   applicationCategory: "MultimediaApplication", operatingSystem: "Any", isAccessibleForFree: true,
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" }, description: HOME_DESCRIPTION,
 };
-const presetLinks = PRESETS.map((p) => `<a href="/${p.id}">${esc(`${p.group} ${p.label}`)}</a>`).join(" · ");
+const presetLinks = [`<a href="/pdf">Merge &amp; compress PDF</a>`, ...PRESETS.map((p) => `<a href="/${p.id}">${esc(`${p.group} ${p.label}`)}</a>`)].join(" · ");
+const faqLdOf = (qa: { q: string; a: string }[]) => `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage",
+  mainEntity: qa.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) }).replace(/</g, "\\u003c")}</script>`;
 
 writeFileSync("dist/index.html", page(HOME_TITLE, HOME_DESCRIPTION, `${SITE}/`,
   body("Resize photos and signatures for exam and visa forms", [esc(HOME_DESCRIPTION), presetLinks]),
@@ -57,7 +59,12 @@ for (const p of PRESETS as Spec[]) {
     `<script type="application/ld+json">${JSON.stringify(faqLd).replace(/</g, "\\u003c")}</script>`));
 }
 
-const urls = ["/", ...PRESETS.map((p) => `/${p.id}`)];
+mkdirSync("dist/pdf", { recursive: true });
+writeFileSync("dist/pdf/index.html", page(PDF_TITLE, PDF_DESCRIPTION, `${SITE}/pdf`,
+  body("Merge and compress PDFs for upload portals", [esc(PDF_DESCRIPTION), ...PDF_FAQS.map(({ q, a }) => `<strong>${esc(q)}</strong><br>${esc(a)}`)]),
+  faqLdOf(PDF_FAQS)));
+
+const urls = ["/", "/pdf", ...PRESETS.map((p) => `/${p.id}`)];
 writeFileSync("dist/sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${SITE}${u}</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>`).join("\n")}
@@ -68,6 +75,10 @@ const llms = [
   "# PortalPic",
   "",
   `> Free tool at ${SITE} that resizes and compresses photos and signatures to the exact pixel size and file-size (KB) limits of exam, visa and passport upload portals. It runs entirely in the browser: images are never uploaded. Every preset links its official source; rules checked ${CHECKED}.`,
+  "",
+  "## PDF tool",
+  "",
+  `- [Merge & compress PDF](${SITE}/pdf): combine PDFs and photos into one PDF under a KB or MB limit (100 KB to 5 MB, or any value), and rebuild PDFs that portals reject as invalid. Runs in the browser; nothing is uploaded.`,
   "",
   "## Presets",
   "",
@@ -81,4 +92,4 @@ const llms = [
 ].join("\n");
 writeFileSync("dist/llms.txt", llms);
 
-console.log(`prerendered ${PRESETS.length + 1} pages, sitemap.xml and llms.txt`);
+console.log(`prerendered ${PRESETS.length + 2} pages, sitemap.xml and llms.txt`);

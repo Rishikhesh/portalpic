@@ -38,3 +38,17 @@ export function faqs(s: Spec): { q: string; a: string }[] {
       a: "PortalPic runs entirely in your browser: the image is never uploaded or stored, and it keeps working offline once loaded." },
   ];
 }
+
+export const PDF_TITLE = "Merge & compress PDF to KB or MB for upload portals | PortalPic";
+export const PDF_DESCRIPTION =
+  "Combine PDFs and photos into one PDF under 100 KB, 200 KB, 300 KB, 500 KB, 1 MB, 2 MB or 5 MB, and fix \"invalid PDF\" upload errors for exam, visa and passport portals. Free, in your browser; nothing is uploaded.";
+export const PDF_FAQS = [
+  { q: "How do I compress a PDF to 200 KB or 300 KB?",
+    a: "Open portalpic.com/pdf, add the PDF, and pick the size limit. If the original is too big, PortalPic redraws each page at the sharpest resolution and quality that fit, then gives you a preview before you download." },
+  { q: "How do I merge photos and PDFs into one PDF for upload?",
+    a: "Add all the files at once, put them in order with the arrows, and download. Each photo becomes a page. Useful when a portal allows only one file or caps the number of uploads." },
+  { q: "The portal says my PDF is invalid, corrupted or has a virus. How do I fix it?",
+    a: "Turn on \"Rebuild every page\". PortalPic redraws every page into a brand-new, plain PDF with no scripts, links, signatures or locks, which strict portals accept." },
+  { q: "Is it safe to compress my passport or Aadhaar PDF here?",
+    a: "Yes. The PDF never leaves your device: it is read, merged and compressed by your own browser. Passwords for locked PDFs are used once in the tab and never stored." },
+];

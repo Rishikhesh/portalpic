@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShieldCheck, MonitorDown } from "lucide-react";
+import { ShieldCheck, MonitorDown, FileStack } from "lucide-react";
 import { PresetCombobox } from "@/components/PresetCombobox";
 import { Stage } from "@/components/Stage";
 import { Inspector, DownloadButton, message } from "@/components/Inspector";
@@ -10,22 +10,12 @@ import { cn } from "@/lib/utils";
 import { REPO, REQUEST_FORM_URL, requestPresetUrl } from "@/lib/links";
 import { PrivacyDialog } from "@/components/PrivacyDialog";
 import { HOME_TITLE, heading, pagePath, pageTitle } from "@/lib/seo";
+import { Logo } from "@/components/Logo";
 
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
-
-function Logo() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden className="size-6">
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="#f2f2f3" />
-      <path d="M7 6.5h-.5v3M17 6.5h.5v3M7 17.5h-.5v-3M17 17.5h.5v-3" stroke="#0b0c0e" strokeWidth="1.6" fill="none" strokeLinecap="round" />
-      <circle cx="12" cy="10.6" r="2" fill="#0b0c0e" />
-      <path d="M8.6 16.4c.6-1.8 1.9-2.7 3.4-2.7s2.8.9 3.4 2.7" fill="#0b0c0e" />
-    </svg>
-  );
-}
 
 export default function App() {
   const [presetId, setPresetId] = useState(() => {
@@ -130,7 +120,10 @@ export default function App() {
               <MonitorDown className="size-4" /> Install
             </button>
           )}
-          <a href={REPO} target="_blank" rel="noopener noreferrer" className="rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground">
+          <a href="/pdf" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-foreground hover:bg-accent">
+            <FileStack className="size-4" /> PDF tools
+          </a>
+          <a href={REPO} target="_blank" rel="noopener noreferrer" className="hidden rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground sm:block">
             Source
           </a>
         </div>

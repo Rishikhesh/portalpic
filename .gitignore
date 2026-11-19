@@ -31,3 +31,5 @@ dist-ssr
 .preset-pr.md
 .preset-needs-info.md
 .clasp.json
+# Copied from pdfjs-dist at build time
+public/pdfjs/

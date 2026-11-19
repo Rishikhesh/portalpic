@@ -26,7 +26,7 @@ const Section = ({ title, children, aside }: { title: string; children: React.Re
   </section>
 );
 
-function SizeMeter({ spec, result, target }: { spec: Spec; result: Result | null; target: number | null }) {
+export function SizeMeter({ spec, result, target }: { spec: Pick<Spec, "minKB" | "maxKB">; result: Pick<Result, "bytes" | "fits" | "tooBig"> | null; target: number | null }) {
   const kb = result && !result.tooBig ? result.bytes / 1024 : null;
   const top = Math.max(spec.maxKB * 1.25, kb ? kb * 1.05 : 0);
   const pct = (v: number) => `${Math.min(100, (v / top) * 100)}%`;

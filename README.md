@@ -20,6 +20,7 @@ Application portals reject uploads that are a few KB or pixels off, with errors 
 ## Features
 
 - **34 presets** ([full list](#presets)): Indian exams (IBPS, SSC, UPSC, RRB, NEET, JEE Main, CUET, GATE), PAN, Indian e-Visa, visa and OCI, and visa or passport photos for the US, UK, Canada, Australia, China, Singapore, Ireland and New Zealand. Plus a custom size.
+- **PDF tool** ([portalpic.com/pdf](https://portalpic.com/pdf)): merge PDFs and photos into one PDF, in any order, under a size limit (100 KB to 5 MB, or any value). It keeps the original pages when they fit; otherwise it redraws each page at the sharpest resolution and JPEG quality that fits. *Rebuild every page* produces a plain new PDF for portals that reject a file as invalid, corrupted, signed or locked. Password-locked PDFs open with the password, which stays in the tab. Uses [pdf.js](https://mozilla.github.io/pdf.js/) and [pdf-lib](https://pdf-lib.js.org), loaded only on that page.
 - **Hits the KB range exactly.** It searches for the highest JPEG quality that fits under the maximum. If even full quality is under the minimum, it pads the file with invisible JPEG comment bytes; the pixels are unchanged.
 - **Exam kits:** pick any upload of an exam and tabs show everything that exam needs (e.g. IBPS: photo, signature, thumb, declaration), with a tick on each one you've downloaded.
 - **Face guide:** a dashed head outline over photo presets, sized from the official rule where one exists (NEET/JEE/CUET 80%, UPSC 78%, Canada 45–50%).
@@ -33,8 +34,8 @@ Application portals reject uploads that are a few KB or pixels off, with errors 
 
 ## Privacy
 
-- Photos are cropped, resized and compressed by your browser. There is no server that receives images, and nothing is saved: closing the tab clears everything except the last form you picked.
-- The only network traffic is cookieless, anonymous counts from [Vercel Web Analytics](https://vercel.com/docs/analytics): page visits, and each download counted as a visit to `/_download/<preset>`. Never the photo, its size, its file name or anything you type.
+- Photos and PDFs are cropped, merged and compressed by your browser. There is no server that receives files, and nothing is saved: closing the tab clears everything except the last form and PDF size limit you picked.
+- The only network traffic is cookieless, anonymous counts from [Vercel Web Analytics](https://vercel.com/docs/analytics): page visits, and each download counted as a visit to `/_download/<preset>`. Never the file, its size, its name or anything you type.
 - The [Content Security Policy](vercel.json) sets `connect-src 'self'`, so the page cannot contact any other website.
 - You can check it yourself: load the page, turn on airplane mode, and everything still works.
 

@@ -1,0 +1,39 @@
+// Assemble PDFs with pdf-lib. No DOM, so it runs under `bun test`.
+import { PDFDocument } from "pdf-lib";
+import { imagePage } from "./plan";
+
+export type Part =
+  | { kind: "pdf"; bytes: Uint8Array }
+  | { kind: "jpg"; bytes: Uint8Array; w: number; h: number };
+
+// Old-style cross-reference tables and a plain producer: the most widely accepted shape for strict upload portals.
+async function finish(d: PDFDocument) {
+  d.setProducer("PortalPic"); d.setCreator("PortalPic (portalpic.com)");
+  return d.save({ useObjectStreams: false });
+}
+
+/** Merge PDFs and photos into one PDF, keeping the original pages (text stays selectable). Throws on encrypted or unreadable PDFs. */
+export async function mergeKeep(parts: Part[]): Promise<Uint8Array> {
+  const out = await PDFDocument.create({ updateMetadata: false });
+  for (const p of parts) {
+    if (p.kind === "pdf") {
+      const src = await PDFDocument.load(p.bytes); // throws EncryptedPDFError for locked files
+      for (const page of await out.copyPages(src, src.getPageIndices())) out.addPage(page);
+    } else {
+      const img = await out.embedJpg(p.bytes);
+      const { w, h } = imagePage(p.w, p.h);
+      out.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
+    }
+  }
+  return finish(out);
+}
+
+/** A fresh PDF with one full-page JPEG per page; w and h are the page size in points. */
+export async function fromJpegs(pages: { jpeg: Uint8Array; w: number; h: number }[]): Promise<Uint8Array> {
+  const out = await PDFDocument.create({ updateMetadata: false });
+  for (const p of pages) {
+    const img = await out.embedJpg(p.jpeg);
+    out.addPage([p.w, p.h]).drawImage(img, { x: 0, y: 0, width: p.w, height: p.h });
+  }
+  return finish(out);
+}

@@ -5,10 +5,10 @@ import { REPO } from "@/lib/links";
 
 // Every claim here must stay true: the CSP in vercel.json (connect-src 'self') stops the page talking to any other site.
 const POINTS: { icon: typeof CloudOff; title: string; body: ReactNode }[] = [
-  { icon: CloudOff, title: "No uploads, no server", body: "Your photo is cropped, resized and compressed by your own browser. There is no server that receives images. The site is static files and nothing else." },
-  { icon: HardDrive, title: "Nothing is saved", body: "Your photo lives only in this tab's memory and is gone when you close it. The only thing remembered on this device is the last form you picked." },
-  { icon: EyeOff, title: "Only anonymous counts", body: "We count visits and downloads with cookieless analytics: which page, country and device type. Never your photo, its contents or its size. No accounts, ads or cookies." },
-  { icon: ShieldCheck, title: "Locked to this site", body: "The page's security policy stops it from contacting any other website, and nothing in the code sends your photo anywhere." },
+  { icon: CloudOff, title: "No uploads, no server", body: "Your photos and PDFs are cropped, merged and compressed by your own browser. There is no server that receives files. The site is static files and nothing else." },
+  { icon: HardDrive, title: "Nothing is saved", body: "Your files live only in this tab's memory and are gone when you close it. A PDF password is used once, in this tab, and never stored. The only things remembered on this device are the last form and PDF size limit you picked." },
+  { icon: EyeOff, title: "Only anonymous counts", body: "We count visits and downloads with cookieless analytics: which page, country and device type. Never your files, their names, contents or sizes. No accounts, ads or cookies." },
+  { icon: ShieldCheck, title: "Locked to this site", body: "The page's security policy stops it from contacting any other website, and nothing in the code sends your files anywhere." },
   { icon: PlaneTakeoff, title: "Check it yourself", body: "Once this page has loaded, turn on airplane mode. Everything still works, even after a reload, because nothing needs the internet." },
   { icon: Code2, title: "Open source", body: <>Every line of code is public on <a className="text-foreground underline" href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a> under the MIT licence.</> },
 ];
@@ -19,7 +19,7 @@ export function PrivacyDialog({ children }: { children: ReactNode }) {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-h-[90svh] overflow-y-auto border-line-strong bg-panel sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle className="text-[18px] tracking-[-0.01em]">Your photo never leaves this device</DialogTitle>
+          <DialogTitle className="text-[18px] tracking-[-0.01em]">Your files never leave this device</DialogTitle>
           <DialogDescription>PortalPic runs entirely in your browser.</DialogDescription>
         </DialogHeader>
         <ul className="mt-1 space-y-4">
