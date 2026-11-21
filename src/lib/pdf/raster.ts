@@ -2,7 +2,9 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { loadImage } from "@/lib/process";
-import { mergeKeep, fromJpegs, type Part } from "./build";
+import { PDFDocument } from "pdf-lib";
+import { BadPdf, finish, fromJpegs, mergeKeep, type Part } from "./build";
+import { STEPS, findImages, inflate, replaceImage, toRGBA, unpredict, type Img } from "./images";
 import { DPIS, QUALITIES, SHARP_DPI, SHARP_Q, imagePage, overhead, pagePixels, pickQuality } from "./plan";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -80,35 +82,122 @@ const blob = (c: HTMLCanvasElement, q: number) =>
   new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), "image/jpeg", q));
 const bytes = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
 
-export type Built = { bytes: Uint8Array; mode: "kept" | "rebuilt"; dpi?: number; quality?: number; forced: boolean };
+export type Built = {
+  bytes: Uint8Array;
+  /** kept: original pages untouched. shrunk: original pages, pictures recompressed. rebuilt: every page is now an image. */
+  mode: "kept" | "shrunk" | "rebuilt";
+  dpi?: number; quality?: number; edge?: number;
+  /** Some locked or damaged files had to be redrawn as images. */
+  forced: boolean;
+};
 type Hooks = { progress: (text: string) => void; stale: () => boolean };
+type PdfSource = Extract<Source, { kind: "pdf" }>;
 
 /**
- * Build one PDF from the sources, under `budget` bytes (Infinity for no limit).
- * First tries keeping the original pages; if that's too big, locked or damaged, or `rebuild` is on,
- * redraws every page as a JPEG at the sharpest resolution and quality that fits. Returns null if nothing fits.
+ * Build one PDF from the sources, under `budget` bytes (Infinity for no limit), keeping it a real PDF whenever possible:
+ * 1. merge the original pages (only files pdf-lib can't open are redrawn);
+ * 2. if too big, recompress the pictures inside, leaving text, links and highlights alone;
+ * 3. only then, or when `rebuild` is on, redraw every page as an image. Returns null if nothing fits.
  */
 export async function build(sources: Source[], budget: number, rebuild: boolean, h: Hooks): Promise<Built | null> {
-  let forced = false;
   if (!rebuild) {
     try {
-      const parts: Part[] = [];
-      for (const s of sources) {
-        if (s.kind === "pdf-locked") throw new Error("locked");
-        if (s.kind === "pdf") parts.push({ kind: "pdf", bytes: await bytes(s.file) });
-        else {
-          const c = document.createElement("canvas");
-          await drawImage(s.bitmap, c, 300);
-          parts.push({ kind: "jpg", bytes: await bytes(await blob(c, 0.9)), w: c.width, h: c.height });
-          c.width = c.height = 0;
-        }
+      const redraw = new Set<number>();
+      let kept: Uint8Array | undefined;
+      while (!kept) {
+        try { kept = await mergeKeep(await partsOf(sources, redraw, h)); }
+        catch (e) { if (e instanceof BadPdf && !redraw.has(e.index)) redraw.add(e.index); else throw e; }
       }
-      h.progress("Merging…");
-      const out = await mergeKeep(parts);
-      if (out.length <= budget) return { bytes: out, mode: "kept", forced };
-    } catch { forced = true; } // encrypted or malformed: pdf-lib can't copy it, so redraw it
+      const forced = redraw.size > 0;
+      if (kept.length <= budget) return { bytes: kept, mode: "kept", forced };
+      const s = await shrink(kept, budget, h);
+      if (s) return { ...s, forced };
+    } catch (e) { if (e instanceof Stale) throw e; } // anything odd: the full redraw below still works
   }
+  return rasterise(sources, budget, h);
+}
 
+async function partsOf(sources: Source[], redraw: Set<number>, h: Hooks): Promise<Part[]> {
+  const parts: Part[] = [];
+  const c = document.createElement("canvas");
+  try {
+    for (const [i, s] of sources.entries()) {
+      if (s.kind === "pdf-locked") throw new Error("locked");
+      if (s.kind === "pdf" && !redraw.has(i)) { parts.push({ kind: "pdf", bytes: await bytes(s.file) }); continue; }
+      if (s.kind === "image") {
+        await drawImage(s.bitmap, c, 300);
+        parts.push({ kind: "jpg", bytes: await bytes(await blob(c, 0.9)), w: c.width, h: c.height });
+        continue;
+      }
+      // Locked (opened with its password) or damaged: pdf.js can still draw it, so redraw only this file's pages.
+      for (let no = 1; no <= s.pages; no++) {
+        if (h.stale()) throw new Stale();
+        h.progress(`Redrawing ${s.name}, page ${no} of ${s.pages}`);
+        const pt = await drawPdf((s as PdfSource).doc, no, c, 200);
+        parts.push({ kind: "jpg", bytes: await bytes(await blob(c, 0.85)), w: c.width, h: c.height, pt });
+      }
+    }
+    h.progress("Merging…");
+    return parts;
+  } finally { c.width = c.height = 0; }
+}
+
+async function decode(img: Img): Promise<ImageBitmap> {
+  if (img.filter === "jpeg") return createImageBitmap(new Blob([img.bytes as BlobPart], { type: "image/jpeg" }));
+  let px = await inflate(img.bytes);
+  if (img.predictor) px = unpredict(px, img.w, img.comps);
+  return createImageBitmap(new ImageData(toRGBA(px, img.w, img.h, img.comps), img.w, img.h));
+}
+
+/** Step 2: same pages, same text; each picture redrawn smaller as a JPEG, all at one STEPS level. */
+async function shrink(kept: Uint8Array, budget: number, h: Hooks): Promise<Built | null> {
+  if (budget === Infinity) return null;
+  const imgs = findImages(await PDFDocument.load(kept, { updateMetadata: false }));
+  if (!imgs.length) return null;
+  const fixed = kept.length - imgs.reduce((n, i) => n + i.bytes.length, 0);
+  if (fixed > budget) return null; // the text and drawings alone are over the limit
+  const ladders: ({ jpeg: Blob; w: number; h: number } | null)[][] = [], sizes: number[][] = [];
+  const c = document.createElement("canvas");
+  let floor = fixed;
+  try {
+    for (const [i, img] of imgs.entries()) {
+      if (h.stale()) throw new Stale();
+      h.progress(`Compressing picture ${i + 1} of ${imgs.length}`);
+      const bmp = await decode(img).catch(() => null); // a picture we can't decode is kept as it is
+      const ladder: (typeof ladders)[number] = [];
+      for (const st of STEPS) {
+        if (!bmp) { ladder.push(null); continue; }
+        // ponytail: caps the picture's own pixels, not its size on the page; read the page's CTM if small inset photos come out soft.
+        const k = Math.min(1, st.edge / Math.max(bmp.width, bmp.height));
+        c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+        const g = c.getContext("2d")!;
+        g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); // JPEG has no alpha; any transparency stays in the PDF's own mask
+        g.imageSmoothingQuality = "high";
+        g.drawImage(bmp, 0, 0, c.width, c.height);
+        const b = await blob(c, st.q);
+        ladder.push(b.size < img.bytes.length ? { jpeg: b, w: c.width, h: c.height } : null);
+      }
+      bmp?.close();
+      ladders.push(ladder); sizes.push(ladder.map((x) => x?.jpeg.size ?? img.bytes.length));
+      floor += sizes[i][STEPS.length - 1];
+      if (floor > budget) return null; // even the smallest pictures won't fit
+    }
+    for (let k = Math.max(0, pickQuality(sizes, budget - fixed)); k < STEPS.length; k++) {
+      h.progress("Assembling…");
+      const doc = await PDFDocument.load(kept, { updateMetadata: false });
+      for (const [i, img] of imgs.entries()) {
+        const x = ladders[i][k];
+        if (x) replaceImage(doc, img.ref, await bytes(x.jpeg), x.w, x.h);
+      }
+      const out = await finish(doc);
+      if (out.length <= budget) return { bytes: out, mode: "shrunk", edge: STEPS[k].edge, quality: STEPS[k].q, forced: false };
+    }
+    return null;
+  } finally { c.width = c.height = 0; }
+}
+
+/** Step 3: every page drawn as a JPEG, at the sharpest resolution and quality that fits. */
+async function rasterise(sources: Source[], budget: number, h: Hooks): Promise<Built | null> {
   const pages = sources.flatMap((s) => Array.from({ length: s.pages }, (_, i) => ({ s, no: i + 1 })));
   const c = document.createElement("canvas");
   let fallback: Built | null = null;
@@ -131,7 +220,7 @@ export async function build(sources: Source[], budget: number, rebuild: boolean,
         h.progress("Assembling…");
         const out = await fromJpegs(await Promise.all(jpegs.map(async (l, i) => ({ jpeg: await bytes(l[q]), ...boxes[i] }))));
         if (out.length > budget) continue;
-        const r: Built = { bytes: out, mode: "rebuilt", dpi, quality: budget === Infinity ? QUALITIES[1] : QUALITIES[q], forced };
+        const r: Built = { bytes: out, mode: "rebuilt", dpi, quality: budget === Infinity ? QUALITIES[1] : QUALITIES[q], forced: false };
         // Heavy JPEG blocking hurts text more than fewer pixels do: try a lower resolution before accepting it.
         if (r.quality! < SHARP_Q && dpi > SHARP_DPI) { fallback ??= r; break; }
         return r;

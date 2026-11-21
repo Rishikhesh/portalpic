@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { PDFDocument } from "pdf-lib";
-import { mergeKeep, fromJpegs } from "./build";
+import { BadPdf, mergeKeep, fromJpegs } from "./build";
 
 // 1×1 white baseline JPEG
 const JPEG = Uint8Array.from(atob("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k="), (c) => c.charCodeAt(0));
@@ -25,7 +25,7 @@ test("mergeKeep joins PDFs and images in order, one page per image", async () =>
 
 test("mergeKeep refuses an encrypted PDF so the caller rebuilds it instead", async () => {
   const enc = new TextEncoder().encode("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R/Encrypt<</Filter/Standard>>>>\n%%EOF");
-  expect(mergeKeep([{ kind: "pdf", bytes: enc }])).rejects.toThrow();
+  expect(mergeKeep([{ kind: "pdf", bytes: await pdf(1) }, { kind: "pdf", bytes: enc }])).rejects.toEqual(new BadPdf(1));
 });
 
 test("fromJpegs makes one page per image at the given page size", async () => {

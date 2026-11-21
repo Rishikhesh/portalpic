@@ -87,6 +87,10 @@ export default function PdfApp() {
   const verdict = !out || busy ? null
     : "tooBig" in out ? { tone: "fail", text: `Can't get this under ${label(limit!)} and keep it readable. Remove pages, or split it into two files.` }
     : out.mode === "kept" ? { tone: "pass", text: out.forced ? "Ready." : "Ready. Original pages kept, so text stays sharp and selectable." }
+    : out.mode === "shrunk" ? (out.quality! <= 0.4
+      ? { tone: "warn", text: "Fits. Text and highlights are untouched, but pictures were compressed hard. Open the preview to check them." }
+      : { tone: "pass", text: "Ready. Text, links and highlights kept; only the pictures inside were compressed." })
+    : !rebuild ? { tone: "warn", text: "Fits only by turning pages into images, so text can't be selected or searched. A higher limit keeps it a real PDF." }
     : (out.dpi! <= 72 || out.quality! < 0.3) ? { tone: "warn", text: "Fits, but small text may be hard to read. Open the preview to check." }
     : { tone: "pass", text: "Ready. Every page was redrawn as a clean image, which portals accept." };
 
@@ -222,11 +226,11 @@ export default function PdfApp() {
               {busy ? <p className="flex items-center gap-2 font-mono text-[12px] text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" /> {progress}</p>
                 : done ? (
                   <p className="font-mono text-[12px] text-muted-foreground">
-                    {fmt(done.bytes.length)} · {pages} page{pages === 1 ? "" : "s"} · {done.mode === "kept" ? "original pages" : `${done.dpi} DPI · q${Math.round(done.quality! * 100)}`}
+                    {fmt(done.bytes.length)} · {pages} page{pages === 1 ? "" : "s"} · {done.mode === "kept" ? "original pages" : done.mode === "shrunk" ? `original pages · pictures ≤${done.edge}px q${Math.round(done.quality! * 100)}` : `pages as images · ${done.dpi} DPI · q${Math.round(done.quality! * 100)}`}
                   </p>)
                 : <p className="text-[13px] text-muted-foreground">{sources.some((s) => s.kind === "pdf-locked") ? "Unlock the locked PDF to continue." : "Your PDF appears here."}</p>}
               {verdict && <p className={cn("mt-2 text-[14px] font-medium", verdict.tone === "pass" ? "text-pass" : verdict.tone === "warn" ? "text-warn" : "text-fail")}>{verdict.text}</p>}
-              {done?.forced && <p className="mt-1 text-[12px] text-muted-foreground">A file was locked or damaged, so its pages were redrawn.</p>}
+              {done?.forced && done.mode !== "rebuilt" && <p className="mt-1 text-[12px] text-muted-foreground">A locked or damaged file was redrawn as images; the other files kept their text.</p>}
             </section>
 
             <footer className="px-5 py-5 text-[12px] leading-relaxed text-muted-foreground">

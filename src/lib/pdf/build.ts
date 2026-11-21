@@ -4,24 +4,27 @@ import { imagePage } from "./plan";
 
 export type Part =
   | { kind: "pdf"; bytes: Uint8Array }
-  | { kind: "jpg"; bytes: Uint8Array; w: number; h: number };
+  | { kind: "jpg"; bytes: Uint8Array; w: number; h: number; pt?: { w: number; h: number } }; // pt: page size, for a redrawn PDF page
+
+/** pdf-lib can't open the PDF at parts[index] (locked or damaged): redraw just that one. */
+export class BadPdf extends Error { index: number; constructor(index: number) { super(`part ${index} unreadable`); this.index = index; } }
 
 // Old-style cross-reference tables and a plain producer: the most widely accepted shape for strict upload portals.
-async function finish(d: PDFDocument) {
+export async function finish(d: PDFDocument) {
   d.setProducer("PortalPic"); d.setCreator("PortalPic (portalpic.com)");
   return d.save({ useObjectStreams: false });
 }
 
-/** Merge PDFs and photos into one PDF, keeping the original pages (text stays selectable). Throws on encrypted or unreadable PDFs. */
+/** Merge PDFs and photos into one PDF, keeping the original pages (text stays selectable). Throws BadPdf on encrypted or unreadable PDFs. */
 export async function mergeKeep(parts: Part[]): Promise<Uint8Array> {
   const out = await PDFDocument.create({ updateMetadata: false });
-  for (const p of parts) {
+  for (const [i, p] of parts.entries()) {
     if (p.kind === "pdf") {
-      const src = await PDFDocument.load(p.bytes); // throws EncryptedPDFError for locked files
+      const src = await PDFDocument.load(p.bytes).catch(() => { throw new BadPdf(i); }); // EncryptedPDFError for locked files
       for (const page of await out.copyPages(src, src.getPageIndices())) out.addPage(page);
     } else {
       const img = await out.embedJpg(p.bytes);
-      const { w, h } = imagePage(p.w, p.h);
+      const { w, h } = p.pt ?? imagePage(p.w, p.h);
       out.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
     }
   }
