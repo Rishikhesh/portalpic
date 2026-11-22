@@ -16,6 +16,8 @@ type Props = {
   ink: boolean;
   spec: Spec;
   src: string | null;
+  /** Where the crop should start (source pixels): the ink of a signature scan. Null starts on the whole picture. */
+  trim: Area | null;
   aspect: number;
   outW: number;
   outH: number;
@@ -30,8 +32,9 @@ const zoomBtn = "grid size-11 shrink-0 place-items-center rounded-sm transition-
 // Every tool carries its word: an icon alone is a guess for someone who has never cropped a photo.
 const toolBtn = "flex h-[52px] w-[62px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-sm text-[14px] font-medium transition-colors hover:bg-accent";
 const BAR = 76; // height of the tool band under the crop
+const MAX_ZOOM = 10; // a signature can be a small part of a full-page scan
 
-export function Stage({ heading, face, ink, spec, src, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
+export function Stage({ heading, face, ink, spec, src, trim, aspect, outW, outH, rotation, error, onFile, onArea, onRotate }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -70,7 +73,8 @@ export function Stage({ heading, face, ink, spec, src, aspect, outW, outH, rotat
         </div>
       ) : (
         <>
-          <Cropper image={src} crop={crop} zoom={zoom} rotation={rotation} aspect={aspect} minZoom={1} maxZoom={5}
+          <Cropper key={`${src} ${aspect}`} image={src} crop={crop} zoom={zoom} rotation={rotation} aspect={aspect} minZoom={1} maxZoom={MAX_ZOOM}
+            initialCroppedAreaPixels={trim ?? undefined}
             zoomSpeed={0.25} objectFit="contain" showGrid={false}
             onCropChange={setCrop} onZoomChange={setZoom} onCropSizeChange={setFrame} onInteractionStart={() => setHint(false)}
             onCropComplete={(_, px) => onArea(px)}
@@ -86,7 +90,7 @@ export function Stage({ heading, face, ink, spec, src, aspect, outW, outH, rotat
           )}
           {hint && !(face && guide) && (
             <p className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-sm border border-line-strong bg-panel px-2 py-1 text-[14px] whitespace-nowrap">
-              Drag to move. Pinch or slide to zoom.
+              {trim ? "Trimmed to the ink. Drag or zoom to adjust." : "Drag to move. Pinch or slide to zoom."}
             </p>
           )}
 
@@ -96,8 +100,8 @@ export function Stage({ heading, face, ink, spec, src, aspect, outW, outH, rotat
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-center px-2" style={{ height: BAR }}>
             <div className="flex items-center rounded-md border border-line-strong bg-panel p-1 shadow-[0_6px_16px_-8px_rgb(20_20_20/0.4)]">
               <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => { setHint(false); setZoom((z) => Math.max(1, z - 0.25)); }}><ZoomOut className="size-5" /></button>
-              <Slider aria-label="Zoom" min={1} max={5} step={0.01} value={[zoom]} onValueChange={([v]) => { setHint(false); setZoom(v); }} className="w-[56px] sm:w-40" />
-              <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => { setHint(false); setZoom((z) => Math.min(5, z + 0.25)); }}><ZoomIn className="size-5" /></button>
+              <Slider aria-label="Zoom" min={1} max={MAX_ZOOM} step={0.01} value={[zoom]} onValueChange={([v]) => { setHint(false); setZoom(v); }} className="w-[56px] sm:w-40" />
+              <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => { setHint(false); setZoom((z) => Math.min(MAX_ZOOM, z + 0.25)); }}><ZoomIn className="size-5" /></button>
               <span className="mx-1 h-7 w-px bg-line" />
               <button type="button" className={toolBtn} onClick={onRotate}><RotateCw className="size-5" /> Turn</button>
               {face && (

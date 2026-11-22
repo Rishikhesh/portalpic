@@ -7,7 +7,7 @@ import { presets, customSpec, isInk, kitFor, faceGuide, type Custom, type Spec }
 import { KitBar } from "@/components/KitBar";
 import { Home } from "@/components/Home";
 import { Header, Footer, headerLink } from "@/components/Chrome";
-import { processImage, loadImage, LoadError, Stale, type Area, type Result } from "@/lib/process";
+import { processImage, loadImage, inkArea, LoadError, Stale, type Area, type Result } from "@/lib/process";
 import { cn, plainClick } from "@/lib/utils";
 import { HOME_TITLE, heading, pageTitle } from "@/lib/seo";
 
@@ -137,7 +137,7 @@ function Tool({ presetId, go, home, done, markDone, right }: ToolProps) {
     setBusy(true);
     const t = setTimeout(async () => {
       let r: Result;
-      try { r = await processImage(img, rotation, area, spec, clean, targetKB, () => id !== job.current); }
+      try { r = await processImage(img, rotation, area, spec, clean, targetKB, () => id !== job.current, faceGuide(spec) !== null); }
       catch (e) {
         if (e instanceof Stale || id !== job.current) return;
         setBusy(false);
@@ -153,6 +153,10 @@ function Tool({ presetId, go, home, done, markDone, right }: ToolProps) {
   }, [img, rotation, area, spec, clean, targetKB]);
 
   useEffect(() => { prev.current = { img, src, result }; }, [img, src, result]);
+
+  // A signature or thumbprint scan opens already framed on its ink, so it fills the box.
+  const ink = isInk(spec), aspect = spec.w / spec.h;
+  const trim = useMemo(() => (ink && img ? inkArea(img, aspect) : null), [ink, img, aspect]);
 
   const kit = kitFor(spec);
   // The next upload this form still needs: the first one after this that hasn't been downloaded yet.
@@ -180,7 +184,7 @@ function Tool({ presetId, go, home, done, markDone, right }: ToolProps) {
         <div className={cn("flex min-w-0 flex-col lg:h-auto lg:min-h-0", src && "h-[58svh]")}>
           <KitBar kit={kit} spec={spec} done={done} onPick={choosePreset} />
           <div className="min-h-0 flex-1">
-            <Stage heading={heading(spec)} face={faceGuide(spec)} ink={isInk(spec)} spec={spec} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
+            <Stage heading={heading(spec)} face={faceGuide(spec)} ink={ink} spec={spec} src={src} trim={trim} aspect={aspect} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
               onFile={onFile} onArea={setArea} onRotate={() => setRotation((r) => (r + 90) % 360)} />
           </div>
         </div>

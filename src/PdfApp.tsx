@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pageview } from "@vercel/analytics";
-import { ArrowDown, ArrowUp, CircleCheck, CircleX, Download, Eye, FilePlus2, ImageIcon, LoaderCircle, Lock, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, CircleCheck, CircleX, Download, Eye, FilePlus2, ImageIcon, LoaderCircle, Lock, RotateCw, TriangleAlert, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Header } from "@/components/Chrome";
 import { Pages } from "@/components/Art";
 import { PrivacyDialog } from "@/components/PrivacyDialog";
 import { SizeMeter } from "@/components/Inspector";
 import { maxBytes } from "@/lib/compress";
-import { build, closeSource, openSource, OpenError, Stale, type Built, type Source } from "@/lib/pdf/raster";
+import { allPages, build, closeSource, openSource, pageThumb, OpenError, Stale, type Built, type Pick, type Source } from "@/lib/pdf/raster";
 import { cn } from "@/lib/utils";
 import { PDF_TITLE } from "@/lib/seo";
 
@@ -21,6 +21,54 @@ const store = {
 };
 type Output = (Built & { url: string }) | { tooBig: true };
 
+const rowBtn = "grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent disabled:opacity-25";
+const turned = (p: Pick): Pick => ({ ...p, rot: (p.rot + 90) % 360 });
+
+/** The pages of one PDF as they will appear in the result: turn, reorder or remove each. */
+// ponytail: pages move only inside their own file, and every thumbnail is drawn when the list opens.
+// Make it one flat list across files if people need to interleave them; draw thumbnails on scroll if 200-page files get slow.
+function PageList({ doc, pages, picks, onPicks }: { doc: Parameters<typeof pageThumb>[0]; pages: number; picks: Pick[]; onPicks: (p: Pick[]) => void }) {
+  const [thumbs, setThumbs] = useState<Record<number, string>>({});
+  const made = useRef<Record<number, string>>({});
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      for (let no = 1; no <= pages && live; no++) {
+        if (made.current[no]) continue;
+        const url = await pageThumb(doc, no).catch(() => "");
+        if (!live) { if (url) URL.revokeObjectURL(url); return; }
+        made.current[no] = url; setThumbs({ ...made.current });
+      }
+    })();
+    return () => { live = false; };
+  }, [doc, pages]);
+  useEffect(() => { const all = made.current; return () => Object.values(all).forEach((u) => u && URL.revokeObjectURL(u)); }, []);
+
+  const swap = (k: number, d: number) => { const c = [...picks]; [c[k], c[k + d]] = [c[k + d], c[k]]; onPicks(c); };
+  const changed = picks.length !== pages || picks.some((p, k) => p.no !== k + 1 || p.rot);
+  return (
+    <div className="mt-2.5 border-t border-line pt-2">
+      <ol className="space-y-1">
+        {picks.map((p, k) => (
+          <li key={p.no} className="flex items-center gap-3">
+            <div className="grid size-14 shrink-0 place-items-center overflow-hidden border border-line bg-raised">
+              {thumbs[p.no] && <img src={thumbs[p.no]} alt="" className="max-h-full max-w-full transition-transform duration-200" style={{ transform: `rotate(${p.rot}deg)` }} />}
+            </div>
+            <span className="min-w-0 flex-1 text-[14px]">Page {p.no}</span>
+            <div className="flex shrink-0 items-center">
+              <button type="button" aria-label={`Turn page ${p.no}`} title="Turn" onClick={() => onPicks(picks.map((x, j) => (j === k ? turned(x) : x)))} className={rowBtn}><RotateCw className="size-4" /></button>
+              <button type="button" aria-label={`Move page ${p.no} up`} disabled={k === 0} onClick={() => swap(k, -1)} className={rowBtn}><ArrowUp className="size-4" /></button>
+              <button type="button" aria-label={`Move page ${p.no} down`} disabled={k === picks.length - 1} onClick={() => swap(k, 1)} className={rowBtn}><ArrowDown className="size-4" /></button>
+              <button type="button" aria-label={`Remove page ${p.no}`} title="Remove" onClick={() => onPicks(picks.filter((_, j) => j !== k))} className={cn(rowBtn, "hover:text-fail")}><X className="size-4" /></button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {changed && <button type="button" onClick={() => onPicks(allPages(pages))} className="link-pen mt-2 text-[14px]">Put all {pages} pages back as they were</button>}
+    </div>
+  );
+}
+
 export default function PdfApp() {
   const [sources, setSources] = useState<Source[]>([]);
   const [limit, setLimit] = useState<number | null>(() => { const v = store.get("pp.pdfLimit"); return v === "none" ? null : Number(v) || 1000; });
@@ -28,6 +76,7 @@ export default function PdfApp() {
   const [out, setOut] = useState<Output | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null); // the file whose pages are being edited
   const job = useRef(0);
   const input = useRef<HTMLInputElement>(null);
   const live = useRef<Source[]>([]);
@@ -56,6 +105,8 @@ export default function PdfApp() {
   };
   const move = (i: number, d: number) => setSources((l) => { const c = [...l]; [c[i], c[i + d]] = [c[i + d], c[i]]; return c; });
   const remove = (s: Source) => { closeSource(s); setSources((l) => l.filter((x) => x !== s)); };
+  // Removing a file's last page removes the file.
+  const setPicks = (s: Source, picks: Pick[]) => (picks.length ? setSources((l) => l.map((x) => (x.id === s.id ? { ...x, picks } : x))) : remove(s));
   const pickLimit = (kb: number | null) => { setLimit(kb); store.set("pp.pdfLimit", kb === null ? "none" : String(kb)); };
 
   // Rebuild whenever files, order, limit or mode change. Debounced; a newer run cancels an older one between pages.
@@ -80,7 +131,7 @@ export default function PdfApp() {
   }, [sources, limit, rebuild, ready]);
   useEffect(() => () => { if (out && "url" in out) URL.revokeObjectURL(out.url); }, [out]);
 
-  const pages = sources.reduce((n, s) => n + s.pages, 0);
+  const pages = sources.reduce((n, s) => n + s.picks.length, 0);
   const busy = progress !== null;
   const done = out && "url" in out && !busy ? out : null;
   const name = `${(sources[0]?.name ?? "document").replace(/\.[^.]+$/, "").replace(/[^\w-]+/g, "-").toLowerCase() || "document"}${sources.length > 1 ? "-merged" : ""}.pdf`;
@@ -157,28 +208,44 @@ export default function PdfApp() {
               </div>
               <ol className="space-y-2">
                 {sources.map((s, i) => (
-                  <li key={s.id} className="flex items-center gap-3 border border-line-strong bg-panel p-2.5">
-                    <div className="grid h-14 w-11 shrink-0 place-items-center overflow-hidden border border-line bg-raised">
-                      {s.thumb ? <img src={s.thumb} alt="" className="max-h-full max-w-full" /> : <Lock className="size-4 text-muted-foreground" />}
+                  <li key={s.id} className="border border-line-strong bg-panel p-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="grid size-14 shrink-0 place-items-center overflow-hidden border border-line bg-raised">
+                        {s.thumb ? <img src={s.thumb} alt="" className="max-h-full max-w-full transition-transform duration-200" style={{ transform: s.pages === 1 ? `rotate(${s.picks[0].rot}deg)` : undefined }} />
+                          : <Lock className="size-4 text-muted-foreground" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] text-foreground">{s.name}</p>
+                        {s.kind === "pdf-locked" ? (
+                          <form className="mt-1 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(s, new FormData(e.currentTarget).get("pw") as string); }}>
+                            <input name="pw" type="password" autoComplete="off" placeholder="PDF password" aria-label={`Password for ${s.name}`}
+                              className="h-9 min-w-0 flex-1 border border-line-strong bg-panel px-2.5 text-[14px]" />
+                            <button className="h-9 rounded-md border border-line-strong bg-panel px-3 text-[14px] font-medium hover:bg-accent">Unlock</button>
+                          </form>
+                        ) : (
+                          <p className="text-[14px] text-muted-foreground">
+                            {s.kind === "image" ? "photo · 1 page" : s.picks.length === s.pages ? `${s.pages} page${s.pages > 1 ? "s" : ""}` : `${s.picks.length} of ${s.pages} pages`} · {fmt(s.size)}
+                          </p>
+                        )}
+                        {s.kind === "pdf-locked" && <p className={cn("mt-1 text-[14px]", s.wrong ? "text-fail" : "text-muted-foreground")}>{s.wrong ? "Wrong password. Try again." : "Locked. The password stays on this device."}</p>}
+                      </div>
+                      <div className="flex shrink-0 items-center">
+                        <button type="button" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(i, -1)} className={rowBtn}><ArrowUp className="size-4" /></button>
+                        <button type="button" aria-label={`Move ${s.name} down`} disabled={i === sources.length - 1} onClick={() => move(i, 1)} className={rowBtn}><ArrowDown className="size-4" /></button>
+                        <button type="button" aria-label={`Remove ${s.name}`} onClick={() => remove(s)} className={cn(rowBtn, "hover:text-fail")}><X className="size-4" /></button>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] text-foreground">{s.name}</p>
-                      {s.kind === "pdf-locked" ? (
-                        <form className="mt-1 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(s, new FormData(e.currentTarget).get("pw") as string); }}>
-                          <input name="pw" type="password" autoComplete="off" placeholder="PDF password" aria-label={`Password for ${s.name}`}
-                            className="h-9 min-w-0 flex-1 border border-line-strong bg-panel px-2.5 text-[14px]" />
-                          <button className="h-9 rounded-md border border-line-strong bg-panel px-3 text-[14px] font-medium hover:bg-accent">Unlock</button>
-                        </form>
-                      ) : (
-                        <p className="text-[14px] text-muted-foreground">{s.kind === "image" ? "photo · 1 page" : `${s.pages} page${s.pages > 1 ? "s" : ""}`} · {fmt(s.size)}</p>
-                      )}
-                      {s.kind === "pdf-locked" && <p className={cn("mt-1 text-[14px]", s.wrong ? "text-fail" : "text-muted-foreground")}>{s.wrong ? "Wrong password. Try again." : "Locked. The password stays on this device."}</p>}
-                    </div>
-                    <div className="flex shrink-0 items-center">
-                      <button type="button" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(i, -1)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent disabled:opacity-25"><ArrowUp className="size-4" /></button>
-                      <button type="button" aria-label={`Move ${s.name} down`} disabled={i === sources.length - 1} onClick={() => move(i, 1)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent disabled:opacity-25"><ArrowDown className="size-4" /></button>
-                      <button type="button" aria-label={`Remove ${s.name}`} onClick={() => remove(s)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent hover:text-fail"><X className="size-4" /></button>
-                    </div>
+                    {s.kind !== "pdf-locked" && (s.pages === 1 ? (
+                      <button type="button" onClick={() => setPicks(s, s.picks.map(turned))} className="mt-2 flex h-10 items-center gap-1.5 rounded-md border border-line-strong px-3 text-[14px] font-medium hover:bg-accent">
+                        <RotateCw className="size-4" /> Turn
+                      </button>
+                    ) : (
+                      <button type="button" aria-expanded={openId === s.id} onClick={() => setOpenId(openId === s.id ? null : s.id)}
+                        className="mt-2 flex h-10 items-center gap-1.5 rounded-md border border-line-strong px-3 text-[14px] font-medium hover:bg-accent">
+                        Choose, turn or reorder pages <ChevronDown className={cn("size-4 transition-transform", openId === s.id && "rotate-180")} />
+                      </button>
+                    ))}
+                    {s.kind === "pdf" && openId === s.id && <PageList doc={s.doc} pages={s.pages} picks={s.picks} onPicks={(p) => setPicks(s, p)} />}
                   </li>
                 ))}
               </ol>

@@ -23,6 +23,14 @@ test("mergeKeep joins PDFs and images in order, one page per image", async () =>
   expect(d.getProducer()).toBe("PortalPic");
 });
 
+test("mergeKeep keeps only the picked pages, in the picked order, turned as asked", async () => {
+  const d = await PDFDocument.create();
+  for (const w of [100, 200, 300]) d.addPage([w, 842]); // page n is n×100 pt wide, so the order can be read back
+  const out = await PDFDocument.load(await mergeKeep([{ kind: "pdf", bytes: await d.save(), picks: [{ no: 3, rot: 90 }, { no: 1, rot: 0 }] }]), { updateMetadata: false });
+  expect(out.getPages().map((p) => p.getWidth())).toEqual([300, 100]);
+  expect(out.getPages().map((p) => p.getRotation().angle)).toEqual([90, 0]);
+});
+
 test("mergeKeep refuses an encrypted PDF so the caller rebuilds it instead", async () => {
   const enc = new TextEncoder().encode("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R/Encrypt<</Filter/Standard>>>>\n%%EOF");
   expect(mergeKeep([{ kind: "pdf", bytes: await pdf(1) }, { kind: "pdf", bytes: enc }])).rejects.toEqual(new BadPdf(1));

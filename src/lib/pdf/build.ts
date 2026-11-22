@@ -1,9 +1,12 @@
 // Assemble PDFs with pdf-lib. No DOM, so it runs under `bun test`.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import { imagePage } from "./plan";
 
+/** One page of a file in the output: its number in that file (from 1) and how far the user turned it (0, 90, 180, 270). */
+export type Pick = { no: number; rot: number };
+
 export type Part =
-  | { kind: "pdf"; bytes: Uint8Array }
+  | { kind: "pdf"; bytes: Uint8Array; picks?: Pick[] } // picks: which pages, in what order; omitted means all of them
   | { kind: "jpg"; bytes: Uint8Array; w: number; h: number; pt?: { w: number; h: number } }; // pt: page size, for a redrawn PDF page
 
 /** pdf-lib can't open the PDF at parts[index] (locked or damaged): redraw just that one. */
@@ -21,7 +24,11 @@ export async function mergeKeep(parts: Part[]): Promise<Uint8Array> {
   for (const [i, p] of parts.entries()) {
     if (p.kind === "pdf") {
       const src = await PDFDocument.load(p.bytes).catch(() => { throw new BadPdf(i); }); // EncryptedPDFError for locked files
-      for (const page of await out.copyPages(src, src.getPageIndices())) out.addPage(page);
+      const picks = p.picks ?? src.getPageIndices().map((n) => ({ no: n + 1, rot: 0 }));
+      for (const [k, page] of (await out.copyPages(src, picks.map((x) => x.no - 1))).entries()) {
+        if (picks[k].rot) page.setRotation(degrees((page.getRotation().angle + picks[k].rot) % 360));
+        out.addPage(page);
+      }
     } else {
       const img = await out.embedJpg(p.bytes);
       const { w, h } = p.pt ?? imagePage(p.w, p.h);

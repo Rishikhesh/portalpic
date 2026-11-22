@@ -1,6 +1,8 @@
 import { fitQuality, padJpeg, setJpegDpi, maxBytes, minBytes } from "./compress";
 import type { Spec } from "./spec";
 import { sniffDims, rejectReason, workSize } from "./limits";
+import { frame, inkBounds } from "./trim";
+import { photoIssues, type Issue } from "./checks";
 
 export class LoadError extends Error {}
 
@@ -60,7 +62,26 @@ export type Result = {
   padded: boolean;
   fits: boolean;
   tooBig: boolean;
+  /** Things a human reviewer may reject (dark, busy background, soft). Never blocks the download. */
+  issues: Issue[];
 };
+
+/** The crop that frames the ink in a signature, thumbprint or declaration scan, or null when trimming wouldn't help. */
+export function inkArea(img: ImageBitmap, aspect: number): Area | null {
+  const k = Math.min(1, 320 / Math.max(img.width, img.height)); // a small copy is plenty to find ink
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  const ink = inkBounds(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+  const sx = img.width / c.width, sy = img.height / c.height;
+  c.width = c.height = 0;
+  if (!ink) return null;
+  const a = frame({ x: ink.x * sx, y: ink.y * sy, width: ink.width * sx, height: ink.height * sy }, img.width, img.height, aspect);
+  // Already filling the picture: leave the default view alone.
+  return a.width > Math.min(img.width, img.height * aspect) * 0.92 ? null : a;
+}
 
 // One cached rotation at a time: a rotated 4096px copy is ~64 MB, so never hold more than one.
 let rotCache: { img: ImageBitmap; rot: number; c: HTMLCanvasElement } | null = null;
@@ -109,17 +130,20 @@ const encoder = (c: HTMLCanvasElement) => (q: number) =>
 // targetKB (optional) aims the file at a size inside the allowed range; the result lands at or just under it.
 export class Stale extends Error {}
 
-export async function processImage(img: ImageBitmap, rot: number, area: Area, spec: Spec, clean: boolean, targetKB: number | null = null, isStale: () => boolean = () => false): Promise<Result> {
+// `check` runs the reviewer checks (face photos only).
+export async function processImage(img: ImageBitmap, rot: number, area: Area, spec: Spec, clean: boolean, targetKB: number | null = null, isStale: () => boolean = () => false, check = false): Promise<Result> {
   const max = maxBytes(spec.maxKB), min = spec.minKB ? minBytes(spec.minKB) : 0;
   const cap = targetKB ? Math.max(min, Math.min(max, Math.floor(targetKB * 1024))) : max;
   const c = document.createElement("canvas");
   draw(c, rotated(img, rot), area, spec.w, spec.h, clean);
+  const issues: Issue[] = check ? photoIssues(c.getContext("2d")!.getImageData(0, 0, spec.w, spec.h).data, spec.w, spec.h) : [];
+  if (check && area.width < spec.w * 0.75) issues.push("soft"); // the crop holds fewer pixels than the file needs
   const base = encoder(c);
   // Bail out between encodes once a newer edit supersedes this run, so drags don't pile up work.
   const enc = async (q: number) => { if (isStale()) throw new Stale(); return base(q); };
   let r = await fitQuality(enc, cap);
   // Nothing fits: report how small the picture could get, so the page can say by how much it missed.
-  if (!r) return { url: "", bytes: (await enc(0.05)).length, quality: 0, w: spec.w, h: spec.h, padded: false, fits: false, tooBig: true };
+  if (!r) return { url: "", bytes: (await enc(0.05)).length, quality: 0, w: spec.w, h: spec.h, padded: false, fits: false, tooBig: true, issues };
 
   let bytes: Uint8Array = r.bytes, padded = false;
   if (min && bytes.length < min) { // too small: spend the headroom on real quality before padding
@@ -130,5 +154,5 @@ export async function processImage(img: ImageBitmap, rot: number, area: Area, sp
   if (spec.dpi) bytes = setJpegDpi(bytes, spec.dpi);
 
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/jpeg" }));
-  return { url, bytes: bytes.length, quality: r.quality, w: spec.w, h: spec.h, padded, fits: bytes.length >= min && bytes.length <= max, tooBig: false };
+  return { url, bytes: bytes.length, quality: r.quality, w: spec.w, h: spec.h, padded, fits: bytes.length >= min && bytes.length <= max, tooBig: false, issues };
 }

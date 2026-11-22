@@ -8,6 +8,7 @@ import { isInk, type Spec, type Custom } from "@/lib/spec";
 import type { Result } from "@/lib/process";
 import { cn } from "@/lib/utils";
 import { faqs, range, CHECKED } from "@/lib/seo";
+import { ISSUE_TEXT } from "@/lib/checks";
 
 type Mark = "idle" | "pass" | "fail";
 
@@ -93,6 +94,11 @@ export function ResultBar({ spec, result, busy, className, done, next, onNext, o
           {msg?.tone === "pass" && result && <span className="font-normal text-foreground"> {size(result.bytes)}, {spec.w} × {spec.h} px.</span>}
         </span>
       </p>
+      {ready && result!.issues.length > 0 && (
+        <ul className="mb-2.5 space-y-1 text-[15px] leading-snug text-warn">
+          {result!.issues.map((i) => <li key={i} className="flex items-start gap-2"><TriangleAlert className="mt-[3px] size-4 shrink-0" /> {ISSUE_TEXT[i]}</li>)}
+        </ul>
+      )}
       <div className="flex gap-2">
         {saved && next ? (
           <button type="button" onClick={() => onNext(next.id)} className="btn-pen min-w-0 flex-1">

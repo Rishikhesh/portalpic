@@ -3,16 +3,21 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-d
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { loadImage } from "@/lib/process";
 import { PDFDocument } from "pdf-lib";
-import { BadPdf, finish, fromJpegs, mergeKeep, type Part } from "./build";
+import { BadPdf, finish, fromJpegs, mergeKeep, type Part, type Pick } from "./build";
 import { STEPS, findImages, inflate, replaceImage, toRGBA, unpredict, type Img } from "./images";
 import { DPIS, QUALITIES, SHARP_DPI, SHARP_Q, imagePage, overhead, pagePixels, pickQuality } from "./plan";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+/** `pages` is how many the file has; `picks` is which of them go into the output, in order, each with its turn. */
+type Base = { id: string; name: string; size: number; file: File; picks: Pick[] };
 export type Source =
-  | { id: string; name: string; size: number; kind: "pdf"; file: File; pages: number; thumb: string; doc: PDFDocumentProxy }
-  | { id: string; name: string; size: number; kind: "pdf-locked"; file: File; pages: 0; thumb: null; wrong: boolean }
-  | { id: string; name: string; size: number; kind: "image"; file: File; pages: 1; thumb: string; bitmap: ImageBitmap };
+  | Base & { kind: "pdf"; pages: number; thumb: string; doc: PDFDocumentProxy }
+  | Base & { kind: "pdf-locked"; pages: 0; thumb: null; wrong: boolean }
+  | Base & { kind: "image"; pages: 1; thumb: string; bitmap: ImageBitmap };
+
+/** Every page of a file, in its own order, unturned. */
+export const allPages = (pages: number): Pick[] => Array.from({ length: pages }, (_, i) => ({ no: i + 1, rot: 0 }));
 
 export class OpenError extends Error {}
 export class Stale extends Error {}
@@ -22,14 +27,14 @@ let n = 0;
 
 /** Open a dropped file. A password-locked PDF comes back as "pdf-locked" until `password` is given. */
 export async function openSource(file: File, password?: string): Promise<Source> {
-  const id = `s${++n}`, base = { id, name: file.name, size: file.size, file };
+  const id = `s${++n}`, base = { id, name: file.name, size: file.size, file, picks: [] as Pick[] };
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (isPdf) {
     if (file.size > MAX_PDF) throw new OpenError(`${file.name} is over 100 MB.`);
     const task = getDocument({ data: new Uint8Array(await file.arrayBuffer()), password, wasmUrl: "/pdfjs/wasm/", standardFontDataUrl: "/pdfjs/standard_fonts/" });
     try {
       const doc = await task.promise;
-      return { ...base, kind: "pdf", pages: doc.numPages, doc, thumb: await thumb((c) => drawPdf(doc, 1, c, 40)) };
+      return { ...base, kind: "pdf", pages: doc.numPages, picks: allPages(doc.numPages), doc, thumb: await thumb((c) => drawPdf(doc, 1, c, 40)) };
     } catch (e) {
       await task.destroy();
       if ((e as Error).name === "PasswordException") return { ...base, kind: "pdf-locked", pages: 0, thumb: null, wrong: !!password };
@@ -39,7 +44,7 @@ export async function openSource(file: File, password?: string): Promise<Source>
   if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) throw new OpenError(`${file.name} isn't a PDF or an image.`);
   const { bitmap, url } = await loadImage(file); // same size and decompression-bomb checks as the photo tool
   URL.revokeObjectURL(url);
-  return { ...base, kind: "image", pages: 1, bitmap, thumb: await thumb((c) => drawImage(bitmap, c, 40)) };
+  return { ...base, kind: "image", pages: 1, picks: allPages(1), bitmap, thumb: await thumb((c) => drawImage(bitmap, c, 40)) };
 }
 
 export function closeSource(s: Source) {
@@ -47,6 +52,10 @@ export function closeSource(s: Source) {
   if (s.kind === "pdf") void s.doc.loadingTask.destroy();
   if (s.kind === "image") s.bitmap.close();
 }
+
+/** A small picture of one page of a PDF, for the page list. The caller revokes the URL. */
+export const pageThumb = (doc: PDFDocumentProxy, no: number) => thumb((c) => drawPdf(doc, no, c, 40));
+export type { Pick };
 
 async function thumb(draw: (c: HTMLCanvasElement) => Promise<unknown>) {
   const c = document.createElement("canvas");
@@ -56,25 +65,30 @@ async function thumb(draw: (c: HTMLCanvasElement) => Promise<unknown>) {
   return URL.createObjectURL(b);
 }
 
-/** Draw page `no` (1-based) at `dpi`; returns its size in points. */
-async function drawPdf(doc: PDFDocumentProxy, no: number, c: HTMLCanvasElement, dpi: number) {
+/** Draw page `no` (1-based) at `dpi`, turned a further `rot` degrees; returns its size in points. */
+async function drawPdf(doc: PDFDocumentProxy, no: number, c: HTMLCanvasElement, dpi: number, rot = 0) {
   const page = await doc.getPage(no);
-  const pt = page.getViewport({ scale: 1 });
+  const rotation = (page.rotate + rot) % 360;
+  const pt = page.getViewport({ scale: 1, rotation });
   const px = pagePixels(pt.width, pt.height, dpi);
   c.width = px.w; c.height = px.h;
-  await page.render({ canvas: c, viewport: page.getViewport({ scale: px.w / pt.width }), background: "#ffffff" }).promise;
+  await page.render({ canvas: c, viewport: page.getViewport({ scale: px.w / pt.width, rotation }), background: "#ffffff" }).promise;
   page.cleanup();
   return { w: pt.width, h: pt.height };
 }
 
-async function drawImage(b: ImageBitmap, c: HTMLCanvasElement, dpi: number) {
-  const pt = imagePage(b.width, b.height);
+async function drawImage(b: ImageBitmap, c: HTMLCanvasElement, dpi: number, rot = 0) {
+  const side = rot % 180 !== 0, bw = side ? b.height : b.width, bh = side ? b.width : b.height; // size once turned
+  const pt = imagePage(bw, bh);
   const px = pagePixels(pt.w, pt.h, dpi);
-  c.width = Math.min(px.w, b.width); c.height = Math.min(px.h, b.height);
+  c.width = Math.min(px.w, bw); c.height = Math.min(px.h, bh);
   const g = c.getContext("2d")!;
   g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
   g.imageSmoothingQuality = "high";
-  g.drawImage(b, 0, 0, c.width, c.height);
+  g.translate(c.width / 2, c.height / 2); g.rotate((rot * Math.PI) / 180);
+  const dw = side ? c.height : c.width, dh = side ? c.width : c.height;
+  g.drawImage(b, -dw / 2, -dh / 2, dw, dh);
+  g.setTransform(1, 0, 0, 1, 0, 0);
   return pt;
 }
 
@@ -123,17 +137,17 @@ async function partsOf(sources: Source[], redraw: Set<number>, h: Hooks): Promis
   try {
     for (const [i, s] of sources.entries()) {
       if (s.kind === "pdf-locked") throw new Error("locked");
-      if (s.kind === "pdf" && !redraw.has(i)) { parts.push({ kind: "pdf", bytes: await bytes(s.file) }); continue; }
+      if (s.kind === "pdf" && !redraw.has(i)) { parts.push({ kind: "pdf", bytes: await bytes(s.file), picks: s.picks }); continue; }
       if (s.kind === "image") {
-        await drawImage(s.bitmap, c, 300);
+        await drawImage(s.bitmap, c, 300, s.picks[0].rot);
         parts.push({ kind: "jpg", bytes: await bytes(await blob(c, 0.9)), w: c.width, h: c.height });
         continue;
       }
       // Locked (opened with its password) or damaged: pdf.js can still draw it, so redraw only this file's pages.
-      for (let no = 1; no <= s.pages; no++) {
+      for (const [k, { no, rot }] of s.picks.entries()) {
         if (h.stale()) throw new Stale();
-        h.progress(`Redrawing ${s.name}, page ${no} of ${s.pages}`);
-        const pt = await drawPdf((s as PdfSource).doc, no, c, 200);
+        h.progress(`Redrawing ${s.name}, page ${k + 1} of ${s.picks.length}`);
+        const pt = await drawPdf((s as PdfSource).doc, no, c, 200, rot);
         parts.push({ kind: "jpg", bytes: await bytes(await blob(c, 0.85)), w: c.width, h: c.height, pt });
       }
     }
@@ -198,17 +212,17 @@ async function shrink(kept: Uint8Array, budget: number, h: Hooks): Promise<Built
 
 /** Step 3: every page drawn as a JPEG, at the sharpest resolution and quality that fits. */
 async function rasterise(sources: Source[], budget: number, h: Hooks): Promise<Built | null> {
-  const pages = sources.flatMap((s) => Array.from({ length: s.pages }, (_, i) => ({ s, no: i + 1 })));
+  const pages = sources.flatMap((s) => s.picks.map((p) => ({ s, ...p })));
   const c = document.createElement("canvas");
   let fallback: Built | null = null;
   try {
     for (const dpi of budget === Infinity ? [150] : DPIS) {
       const sizes: number[][] = [], jpegs: Blob[][] = [], boxes: { w: number; h: number }[] = [];
       let floor = overhead(pages.length);
-      for (const [i, { s, no }] of pages.entries()) {
+      for (const [i, { s, no, rot }] of pages.entries()) {
         if (h.stale()) throw new Stale();
         h.progress(`Rebuilding page ${i + 1} of ${pages.length} · ${dpi} DPI`);
-        boxes.push(s.kind === "pdf" ? await drawPdf(s.doc, no, c, dpi) : await drawImage((s as Extract<Source, { kind: "image" }>).bitmap, c, dpi));
+        boxes.push(s.kind === "pdf" ? await drawPdf(s.doc, no, c, dpi, rot) : await drawImage((s as Extract<Source, { kind: "image" }>).bitmap, c, dpi, rot));
         const ladder = budget === Infinity ? [await blob(c, QUALITIES[1])] : [];
         if (budget !== Infinity) for (const q of QUALITIES) ladder.push(await blob(c, q));
         jpegs.push(ladder); sizes.push(ladder.map((b) => b.size));

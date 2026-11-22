@@ -27,6 +27,9 @@ Application portals reject uploads that are a few KB or pixels off, with errors 
 - **Works offline and installs like an app:** after one visit it keeps working without internet; Chrome and Android show an **Install** button.
 - **Optional target size** inside the allowed range, for portals that are picky in practice.
 - **Crop, zoom and rotate** locked to the required shape, plus a *clean paper* filter that whitens the background and darkens ink on signatures and thumb impressions.
+- **Trims signature scans:** a signature, thumb impression or declaration opens already framed on its ink, so it fills the box even when you photographed a whole page.
+- **Photo warnings:** before you download a face photo, it warns if the picture looks dark, the background isn't plain and light, or the crop is too small to stay sharp. Warnings never block the download.
+- **PDF pages:** inside any PDF you add, remove pages, turn them, or change their order (which also splits a file: keep only the pages you need).
 - **Sets DPI** in the file header where a portal asks for it (IBPS thumb and declaration, PAN, RRB).
 - **Strips metadata**, including GPS location, because only the pixels are copied.
 - **Won't crash on huge files:** it reads the image size from the file header and refuses anything over 64 megapixels or 60 MB before opening it.
@@ -34,7 +37,7 @@ Application portals reject uploads that are a few KB or pixels off, with errors 
 
 ## Privacy
 
-- Photos and PDFs are cropped, merged and compressed by your browser. There is no server that receives files, and nothing is saved: closing the tab clears everything except the last form and PDF size limit you picked.
+- Photos and PDFs are cropped, merged and compressed by your browser. There is no server that receives files, and nothing is saved: closing the tab clears everything except the last form, the PDF size limit and the light or dark look you picked.
 - The only network traffic is cookieless, anonymous counts from [Vercel Web Analytics](https://vercel.com/docs/analytics): page visits, and each download counted as a visit to `/_download/<preset>`. Never the file, its size, its name or anything you type.
 - The [Content Security Policy](vercel.json) sets `connect-src 'self'`, so the page cannot contact any other website.
 - You can check it yourself: load the page, turn on airplane mode, and everything still works.
