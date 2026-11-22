@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pageview } from "@vercel/analytics";
-import { ArrowDown, ArrowUp, Download, Eye, FilePlus2, FileStack, ImageIcon, LoaderCircle, Lock, ShieldCheck, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowDown, ArrowUp, CircleCheck, CircleX, Download, Eye, FilePlus2, ImageIcon, LoaderCircle, Lock, TriangleAlert, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Logo } from "@/components/Logo";
+import { Header } from "@/components/Chrome";
+import { Pages } from "@/components/Art";
 import { PrivacyDialog } from "@/components/PrivacyDialog";
 import { SizeMeter } from "@/components/Inspector";
 import { maxBytes } from "@/lib/compress";
@@ -86,73 +86,79 @@ export default function PdfApp() {
   const name = `${(sources[0]?.name ?? "document").replace(/\.[^.]+$/, "").replace(/[^\w-]+/g, "-").toLowerCase() || "document"}${sources.length > 1 ? "-merged" : ""}.pdf`;
   const verdict = !out || busy ? null
     : "tooBig" in out ? { tone: "fail", text: `Can't get this under ${label(limit!)} and keep it readable. Remove pages, or split it into two files.` }
-    : out.mode === "kept" ? { tone: "pass", text: out.forced ? "Ready." : "Ready. Original pages kept, so text stays sharp and selectable." }
+    : out.mode === "kept" ? { tone: "pass", text: out.forced ? "Ready to upload." : "Ready to upload. Text stays sharp." }
     : out.mode === "shrunk" ? (out.quality! <= 0.4
       ? { tone: "warn", text: "Fits. Text and highlights are untouched, but pictures were compressed hard. Open the preview to check them." }
-      : { tone: "pass", text: "Ready. Text, links and highlights kept; only the pictures inside were compressed." })
+      : { tone: "pass", text: "Ready to upload. Only the pictures inside were compressed." })
     : !rebuild ? { tone: "warn", text: "Fits only by turning pages into images, so text can't be selected or searched. A higher limit keeps it a real PDF." }
     : (out.dpi! <= 72 || out.quality! < 0.3) ? { tone: "warn", text: "Fits, but small text may be hard to read. Open the preview to check." }
-    : { tone: "pass", text: "Ready. Every page was redrawn as a clean image, which portals accept." };
+    : { tone: "pass", text: "Ready to upload. Every page was redrawn as a clean image." };
 
   const download = (
     <a href={done?.url} download={done ? name : undefined} aria-disabled={!done}
       onClick={() => pageview({ route: "/_download/[preset]", path: "/_download/pdf" })}
-      className={cn("flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-[background,opacity] duration-150 hover:bg-white",
-        !done && "pointer-events-none opacity-35")}>
+      className="btn-pen flex-1">
       {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
-      {busy ? "Working…" : done ? `Download PDF · ${fmt(done.bytes.length)}` : "Download PDF"}
+      {busy ? "Working…" : "Download PDF"}
     </a>
   );
   const preview = done && (
-    <a href={done.url} target="_blank" rel="noopener" className="grid size-11 shrink-0 place-items-center rounded-md border border-line-strong text-muted-foreground hover:bg-accent hover:text-foreground" title="Open the PDF to check it" aria-label="Preview PDF">
-      <Eye className="size-4" />
+    <a href={done.url} target="_blank" rel="noopener" className="btn-box shrink-0" title="Open the PDF to check it">
+      <Eye className="size-4" /> Preview
     </a>
+  );
+
+  const locked = sources.some((s) => s.kind === "pdf-locked");
+  const tone = verdict ? { pass: "text-pass", warn: "text-warn", fail: "text-fail" }[verdict.tone] : "text-muted-foreground";
+  const Mark = verdict ? { pass: CircleCheck, warn: TriangleAlert, fail: CircleX }[verdict.tone] : null;
+  // The verdict and the action it leads to, kept together: same bar as the photo tool.
+  const bar = (className: string) => (
+    <div className={className}>
+      <p aria-live="polite" className={cn("mb-2.5 flex items-start gap-2 text-[17px] leading-snug font-semibold", tone)}>
+        {busy ? <LoaderCircle className="mt-[2px] size-5 shrink-0 animate-spin" /> : Mark && <Mark className="mt-[2px] size-5 shrink-0" />}
+        <span>
+          {busy ? progress : verdict ? verdict.text : locked ? "Unlock the locked PDF to continue." : "Add your files to make one PDF."}
+          {done && verdict?.tone !== "fail" && <span className="font-normal text-foreground"> {fmt(done.bytes.length)}, {pages} page{pages === 1 ? "" : "s"}.</span>}
+        </span>
+      </p>
+      <div className="flex gap-2">{download}{preview}</div>
+    </div>
   );
 
   return (
     <div className="flex min-h-svh flex-col lg:h-svh">
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel px-4">
-        <a href="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]"><Logo /> PortalPic</a>
-        <span className="h-5 w-px bg-line" />
-        <span className="text-[14px] text-muted-foreground">PDF</span>
-        <div className="ml-auto flex items-center gap-1">
-          <PrivacyDialog>
-            <button type="button" className="hidden items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground sm:flex">
-              <ShieldCheck className="size-4 text-pass" /> Processed on your device
-            </button>
-          </PrivacyDialog>
-          <a href="/" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-foreground hover:bg-accent"><ImageIcon className="size-4" /> Photo & signature</a>
-        </div>
-      </header>
+      <Header compact right={<a href="/" className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[14px] font-medium hover:bg-accent"><ImageIcon className="size-4" /> Photo<span className="hidden sm:inline"> & signature</span></a>}>
+        <span className="hidden text-[14px] text-muted-foreground sm:inline">PDF tools</span>
+      </Header>
 
-      <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="canvas-grid min-w-0 lg:min-h-0 lg:overflow-y-auto"
+      <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <section className="min-w-0 lg:min-h-0 lg:overflow-y-auto"
           onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void add(e.dataTransfer.files); }}>
           <input ref={input} type="file" multiple accept="application/pdf,.pdf,image/*" onChange={(e) => { if (e.target.files) void add(e.target.files); e.target.value = ""; }} />
           {sources.length === 0 ? (
             <div className="grid min-h-[60svh] place-items-center px-6 py-14 text-center lg:h-full">
               <div className="flex max-w-[26rem] flex-col items-center">
-                <div className="mb-5 grid size-14 place-items-center rounded-xl border border-line-strong bg-panel text-muted-foreground"><FileStack className="size-6" strokeWidth={1.6} /></div>
-                <h1 className="text-[19px] font-semibold tracking-[-0.01em] text-balance">Merge and compress PDFs for upload portals</h1>
-                <p className="mt-1.5 text-[14px] text-muted-foreground">
+                <div className="mb-3 h-[132px] w-[114px]"><Pages /></div>
+                <h1 className="text-[26px] leading-tight font-bold text-balance">Merge and compress PDFs for upload portals</h1>
+                <p className="mt-2 text-[14px] text-muted-foreground">
                   Combine PDFs and photos into one file under the portal's size limit, and fix "invalid PDF" errors. It all happens in your browser; nothing is uploaded.{" "}
-                  <PrivacyDialog><button type="button" className="text-foreground underline">How we know</button></PrivacyDialog>
+                  <PrivacyDialog><button type="button" className="link-pen">How we know</button></PrivacyDialog>
                 </p>
-                <Button onClick={() => input.current?.click()} className="mt-6 h-11 rounded-md px-5 text-[15px] font-semibold">Choose files</Button>
-                <p className="mt-3 font-mono text-[12px] text-muted-foreground">PDF · JPG · PNG · HEIC · several at once · or paste</p>
+                <button type="button" onClick={() => input.current?.click()} className="btn-pen mt-5 w-full">Choose files</button>
+                <p className="mt-3 text-[14px] text-muted-foreground">PDF, JPG, PNG or HEIC. Several at once is fine.</p>
                 {error && <p role="alert" className="mt-4 text-[14px] font-medium text-fail">{error}</p>}
               </div>
             </div>
           ) : (
             <div className="mx-auto max-w-2xl px-4 py-5">
               <div className="mb-3 flex items-center justify-between">
-                <h1 className="text-[15px] font-semibold">{sources.length} file{sources.length > 1 ? "s" : ""} · {pages} page{pages === 1 ? "" : "s"}</h1>
-                <span className="text-[12px] text-muted-foreground">Joined top to bottom</span>
+                <h1 className="text-[20px] font-bold">{sources.length} file{sources.length > 1 ? "s" : ""} · {pages} page{pages === 1 ? "" : "s"}</h1>
+                <span className="text-[14px] text-muted-foreground">Joined top to bottom</span>
               </div>
               <ol className="space-y-2">
                 {sources.map((s, i) => (
-                  <li key={s.id} className="flex items-center gap-3 rounded-lg border border-line bg-panel p-2.5">
-                    <div className="grid h-14 w-11 shrink-0 place-items-center overflow-hidden rounded-[4px] bg-raised">
+                  <li key={s.id} className="flex items-center gap-3 border border-line-strong bg-panel p-2.5">
+                    <div className="grid h-14 w-11 shrink-0 place-items-center overflow-hidden border border-line bg-raised">
                       {s.thumb ? <img src={s.thumb} alt="" className="max-h-full max-w-full" /> : <Lock className="size-4 text-muted-foreground" />}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -160,24 +166,24 @@ export default function PdfApp() {
                       {s.kind === "pdf-locked" ? (
                         <form className="mt-1 flex gap-2" onSubmit={(e) => { e.preventDefault(); void unlock(s, new FormData(e.currentTarget).get("pw") as string); }}>
                           <input name="pw" type="password" autoComplete="off" placeholder="PDF password" aria-label={`Password for ${s.name}`}
-                            className="h-8 min-w-0 flex-1 rounded-md border border-line-strong bg-raised px-2.5 text-[13px] focus:border-ring focus:outline-none" />
-                          <button className="h-8 rounded-md bg-raised px-3 text-[13px] text-foreground hover:bg-accent">Unlock</button>
+                            className="h-9 min-w-0 flex-1 border border-line-strong bg-panel px-2.5 text-[14px]" />
+                          <button className="h-9 rounded-md border border-line-strong bg-panel px-3 text-[14px] font-medium hover:bg-accent">Unlock</button>
                         </form>
                       ) : (
-                        <p className="font-mono text-[12px] text-muted-foreground">{s.kind === "image" ? "photo · 1 page" : `${s.pages} page${s.pages > 1 ? "s" : ""}`} · {fmt(s.size)}</p>
+                        <p className="text-[14px] text-muted-foreground">{s.kind === "image" ? "photo · 1 page" : `${s.pages} page${s.pages > 1 ? "s" : ""}`} · {fmt(s.size)}</p>
                       )}
-                      {s.kind === "pdf-locked" && <p className={cn("mt-1 text-[12px]", s.wrong ? "text-fail" : "text-muted-foreground")}>{s.wrong ? "Wrong password. Try again." : "Locked. The password stays on this device."}</p>}
+                      {s.kind === "pdf-locked" && <p className={cn("mt-1 text-[14px]", s.wrong ? "text-fail" : "text-muted-foreground")}>{s.wrong ? "Wrong password. Try again." : "Locked. The password stays on this device."}</p>}
                     </div>
                     <div className="flex shrink-0 items-center">
-                      <button type="button" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(i, -1)} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-25"><ArrowUp className="size-4" /></button>
-                      <button type="button" aria-label={`Move ${s.name} down`} disabled={i === sources.length - 1} onClick={() => move(i, 1)} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-25"><ArrowDown className="size-4" /></button>
-                      <button type="button" aria-label={`Remove ${s.name}`} onClick={() => remove(s)} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-fail"><X className="size-4" /></button>
+                      <button type="button" aria-label={`Move ${s.name} up`} disabled={i === 0} onClick={() => move(i, -1)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent disabled:opacity-25"><ArrowUp className="size-4" /></button>
+                      <button type="button" aria-label={`Move ${s.name} down`} disabled={i === sources.length - 1} onClick={() => move(i, 1)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent disabled:opacity-25"><ArrowDown className="size-4" /></button>
+                      <button type="button" aria-label={`Remove ${s.name}`} onClick={() => remove(s)} className="grid size-10 place-items-center rounded-sm text-foreground hover:bg-accent hover:text-fail"><X className="size-4" /></button>
                     </div>
                   </li>
                 ))}
               </ol>
               <button type="button" onClick={() => input.current?.click()}
-                className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong text-[14px] text-muted-foreground hover:bg-panel hover:text-foreground">
+                className="mt-2 flex h-12 w-full items-center justify-center gap-2 border-[1.5px] border-dashed border-line-strong text-[14px] font-medium text-pen hover:bg-panel">
                 <FilePlus2 className="size-4" /> Add PDFs or photos
               </button>
               {error && <p role="alert" className="mt-3 text-[14px] font-medium text-fail">{error}</p>}
@@ -185,23 +191,23 @@ export default function PdfApp() {
           )}
         </section>
 
-        <aside className={cn("flex flex-col border-line bg-panel lg:min-h-0 lg:border-l", done ? "pb-24 lg:pb-0" : "")}>
+        <aside className={cn("flex flex-col border-t border-line bg-canvas lg:min-h-0 lg:border-t-0 lg:border-l lg:border-line-strong", sources.length ? "pb-48 lg:pb-0" : "")}>
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-            <section className="border-b border-line px-5 py-5">
-              <h2 className="mb-3 text-[13px] font-medium text-muted-foreground">Size limit</h2>
+            <section className="border-b border-line px-4 pt-6 pb-5 sm:px-5">
+              <h2 className="mb-2.5 text-[19px] leading-tight font-bold">Size limit</h2>
               <div className="flex flex-wrap gap-1.5">
                 {LIMITS.map((kb) => (
                   <button key={kb} type="button" aria-pressed={limit === kb} onClick={() => pickLimit(kb)}
-                    className={cn("h-8 rounded-md border px-2.5 font-mono text-[13px]", limit === kb ? "border-foreground bg-foreground text-canvas" : "border-line-strong text-foreground hover:bg-accent")}>{label(kb)}</button>
+                    className={cn("h-10 rounded-md border border-line-strong px-3 text-[14px] font-medium", limit === kb ? "bg-pen font-semibold text-primary-foreground" : "bg-panel hover:bg-accent")}>{label(kb)}</button>
                 ))}
                 <button type="button" aria-pressed={limit === null} onClick={() => pickLimit(null)}
-                  className={cn("h-8 rounded-md border px-2.5 text-[13px]", limit === null ? "border-foreground bg-foreground text-canvas" : "border-line-strong text-foreground hover:bg-accent")}>No limit</button>
+                  className={cn("h-10 rounded-md border border-line-strong px-3 text-[14px] font-medium", limit === null ? "bg-pen font-semibold text-primary-foreground" : "bg-panel hover:bg-accent")}>No limit</button>
               </div>
-              <label className="mt-3 flex items-center gap-2 text-[13px] text-muted-foreground">
+              <label className="mt-3 flex items-center gap-2 text-[14px] text-muted-foreground">
                 Other
                 <input type="number" inputMode="numeric" min={20} placeholder="KB" value={limit !== null && !LIMITS.includes(limit) ? limit : ""}
                   onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 20) pickLimit(v); }}
-                  className="h-8 w-24 rounded-md border border-line-strong bg-raised px-2.5 font-mono text-[13px] text-foreground focus:border-ring focus:outline-none" />
+                  className="h-10 w-24 border border-line-strong bg-panel px-2.5 text-[15px] font-semibold text-pen placeholder:font-normal placeholder:text-muted-foreground" />
                 KB
               </label>
               {limit !== null && (
@@ -211,39 +217,37 @@ export default function PdfApp() {
               )}
             </section>
 
-            <section className="border-b border-line px-5 py-5">
+            <section className="border-b border-line px-4 py-5 sm:px-5">
               <label className="flex cursor-pointer items-center justify-between gap-4">
                 <span>
-                  <span className="block text-[14px] text-foreground">Rebuild every page</span>
-                  <span className="block text-[12px] text-muted-foreground">Fixes "invalid", "corrupted" or "virus" upload errors and removes locks. Text becomes an image.</span>
+                  <span className="block text-[15px] font-medium">Rebuild every page</span>
+                  <span className="block text-[14px] text-muted-foreground">Fixes "invalid", "corrupted" or "virus" upload errors and removes locks. Text becomes an image.</span>
                 </span>
                 <Switch checked={rebuild} onCheckedChange={setRebuild} />
               </label>
             </section>
 
-            <section className="border-b border-line px-5 py-5" aria-live="polite">
-              <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">Result</h2>
-              {busy ? <p className="flex items-center gap-2 font-mono text-[12px] text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" /> {progress}</p>
-                : done ? (
-                  <p className="font-mono text-[12px] text-muted-foreground">
-                    {fmt(done.bytes.length)} · {pages} page{pages === 1 ? "" : "s"} · {done.mode === "kept" ? "original pages" : done.mode === "shrunk" ? `original pages · pictures ≤${done.edge}px q${Math.round(done.quality! * 100)}` : `pages as images · ${done.dpi} DPI · q${Math.round(done.quality! * 100)}`}
-                  </p>)
-                : <p className="text-[13px] text-muted-foreground">{sources.some((s) => s.kind === "pdf-locked") ? "Unlock the locked PDF to continue." : "Your PDF appears here."}</p>}
-              {verdict && <p className={cn("mt-2 text-[14px] font-medium", verdict.tone === "pass" ? "text-pass" : verdict.tone === "warn" ? "text-warn" : "text-fail")}>{verdict.text}</p>}
-              {done?.forced && done.mode !== "rebuilt" && <p className="mt-1 text-[12px] text-muted-foreground">A locked or damaged file was redrawn as images; the other files kept their text.</p>}
-            </section>
+            {done && (
+              <section className="border-b border-line px-4 pt-6 pb-5 sm:px-5">
+                <h2 className="mb-2.5 text-[19px] leading-tight font-bold">Your PDF</h2>
+                <p className="text-[14px] text-muted-foreground">
+                  {fmt(done.bytes.length)} · {pages} page{pages === 1 ? "" : "s"} · {done.mode === "kept" ? "original pages" : done.mode === "shrunk" ? "original pages, pictures compressed" : `pages as images, ${done.dpi} DPI`}
+                </p>
+                {done.forced && done.mode !== "rebuilt" && <p className="mt-1 text-[14px] text-muted-foreground">A locked or damaged file was redrawn as images; the other files kept their text.</p>}
+              </section>
+            )}
 
-            <footer className="px-5 py-5 text-[12px] leading-relaxed text-muted-foreground">
+            <footer className="px-4 py-6 text-[14px] leading-relaxed text-muted-foreground sm:px-5">
               Sizes use 1 MB = 1000 KB, the strict reading, so the file passes either way a portal counts.{" "}
-              <PrivacyDialog><button type="button" className="text-foreground underline">Privacy</button></PrivacyDialog> · MIT licensed.
+              <PrivacyDialog><button type="button" className="link-pen">Privacy</button></PrivacyDialog> · MIT licensed.
             </footer>
           </div>
-          <div className="hidden gap-2 border-t border-line p-4 lg:flex">{download}{preview}</div>
+          {bar("hidden border-t border-line-strong bg-panel p-4 lg:block")}
         </aside>
       </main>
 
       {sources.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t border-line bg-panel px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] lg:hidden">{download}{preview}</div>
+        bar("fixed inset-x-0 bottom-0 z-20 border-t border-line-strong bg-panel px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(20_20_20/0.3)] lg:hidden")
       )}
     </div>
   );

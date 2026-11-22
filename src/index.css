@@ -2,10 +2,10 @@
 @import "tw-animate-css";
 
 @theme inline {
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -30,77 +30,131 @@
   --color-raised: var(--raised);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-pen: var(--pen);
+  --color-pen-dark: var(--pen-dark);
+  --color-hl: var(--hl);
   --color-pass: var(--pass);
   --color-fail: var(--fail);
   --color-warn: var(--warn);
 
-  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  /* Body and numbers use the phone's own font (no download, tabular figures); headings use Anek Latin. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --font-display: "Anek Latin Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* A precise, quiet instrument: graphite surfaces, white type, colour only for pass/fail. */
+/* The official notice: black print is what the portal says, blue ballpoint is what is yours. */
 :root {
-  color-scheme: dark;
-  --canvas: #0b0c0e;
-  --panel: #131418;
-  --raised: #1b1d22;
-  --line: #262930;
-  --line-strong: #3a3e47;
-  --pass: #3fcf8e;
-  --fail: #ff6a5c;
-  --warn: #f0b545;
+  color-scheme: light;
+  --canvas: #f4f3ee;      /* newsprint paper */
+  --panel: #ffffff;       /* work sheet */
+  --raised: #e9e7de;      /* crop stage, insets */
+  --line: #d3d0c4;        /* light rule */
+  --line-strong: #141414; /* boxed print rule */
+  --pen: #1a3fb5;
+  --pen-dark: #132f8a;
+  --hl: #ffe45c;          /* highlighter: the current step */
+  --pass: #0e7a3d;
+  --fail: #c4161c;
+  --warn: #855600;
 
-  --radius: 8px;
+  --radius: 2px;
   --background: var(--canvas);
-  --foreground: #ececef;
+  --foreground: #141414;
   --card: var(--panel);
-  --card-foreground: #ececef;
-  --popover: #17181c;
-  --popover-foreground: #ececef;
-  --primary: #f2f2f3;
-  --primary-foreground: #0b0c0e;
+  --card-foreground: #141414;
+  --popover: #ffffff;
+  --popover-foreground: #141414;
+  --primary: var(--pen);
+  --primary-foreground: #ffffff;
   --secondary: var(--raised);
-  --secondary-foreground: #ececef;
+  --secondary-foreground: #141414;
   --muted: var(--raised);
-  --muted-foreground: #a3a6af;
-  --accent: #23262c;
-  --accent-foreground: #ffffff;
+  --muted-foreground: #55524a;
+  --accent: #e9e7de;
+  --accent-foreground: #141414;
   --destructive: var(--fail);
   --border: var(--line);
   --input: var(--line-strong);
-  --ring: #9db6ff;
+  --ring: var(--pen);
+  --veil: rgb(233 231 222 / 0.86); /* over the part of the photo outside the crop */
 }
+
+/* The same notice read at night: dark paper, pale print, a lighter ballpoint blue. */
+@utility theme-dark {
+  color-scheme: dark;
+  --canvas: #131311;
+  --panel: #1c1c19;
+  --raised: #262520;
+  --line: #3b3a32;
+  --line-strong: #e9e7dd;
+  --pen: #93abff;
+  --pen-dark: #b7c6ff;
+  --hl: #5a4b00;
+  --pass: #5ccf8a;
+  --fail: #ff7d72;
+  --warn: #e6b655;
+  --foreground: #efede4;
+  --card-foreground: #efede4;
+  --popover: #1c1c19;
+  --popover-foreground: #efede4;
+  --primary-foreground: #0e1326;
+  --secondary-foreground: #efede4;
+  --muted-foreground: #aaa79b;
+  --accent: #2b2a24;
+  --accent-foreground: #efede4;
+  --veil: rgb(38 37 32 / 0.86);
+}
+/* Dark follows the phone's setting until the visitor picks a side with the header switch (data-theme). */
+:root[data-theme="dark"] { @apply theme-dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { @apply theme-dark; } }
 
 @layer base {
   * { @apply border-border; }
   html { -webkit-tap-highlight-color: transparent; background: var(--canvas); }
   body {
     @apply bg-canvas text-foreground font-sans antialiased;
-    font-size: 15px;
+    font-size: 16px;
     line-height: 1.5;
-    font-feature-settings: "ss01", "tnum";
+    font-variant-numeric: tabular-nums;
+    caret-color: var(--pen);
   }
-  ::selection { background: #3a4d80; color: #fff; }
-  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  h1, h2, th { font-family: var(--font-display); }
+  ::selection { background: var(--hl); color: var(--foreground); }
+  :focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
   a { text-underline-offset: 3px; }
   input[type="file"] { display: none; }
-  * { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  input[type="search"]::-webkit-search-cancel-button { display: none; }
+  * { scrollbar-width: thin; scrollbar-color: #a9a69a transparent; }
+  summary { cursor: pointer; }
 }
 
 @layer components {
-  .canvas-grid {
-    background-color: var(--canvas);
-    background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
-    background-size: 18px 18px;
+  /* Primary action: blue ballpoint, square like a printed box. */
+  .btn-pen {
+    @apply flex h-[54px] items-center justify-center gap-2 rounded-md bg-pen px-5 text-[18px] font-semibold text-primary-foreground transition-colors duration-150;
   }
-  .checker {
-    background-color: #2a2c31;
-    background-image: repeating-conic-gradient(#33363c 0 25%, transparent 0 50%);
-    background-size: 12px 12px;
+  .btn-pen:hover { background: var(--pen-dark); }
+  .btn-pen:active { transform: translateY(1px); }
+  .btn-pen[aria-disabled="true"] { @apply pointer-events-none opacity-40; }
+  /* Secondary action: a boxed print outline. */
+  .btn-box {
+    @apply flex h-[54px] items-center justify-center gap-2 rounded-md border border-line-strong bg-panel px-4 text-[16px] font-medium text-foreground transition-colors duration-150;
   }
+  .btn-box:hover { background: var(--accent); }
+  .link-pen { @apply font-medium text-pen underline; }
+  .link-pen:hover { color: var(--pen-dark); }
 }
 
-.needle { transition: left 420ms cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes check-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
-.check-in { animation: check-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-@media (prefers-reduced-motion: reduce) { .needle { transition: none; } .check-in { animation: none; } }
+/* The one authored motion: each rule's tick is drawn by the pen as the file passes. */
+.fill { transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), left 420ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+.draw { stroke-dasharray: 24; animation: draw 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* Theme switch: the new look opens as a circle from the switch (see ThemeToggle in Chrome.tsx).
+   The new snapshot sits on top and is clipped open by script; the default cross-fade is switched off. */
+html.theme-vt::view-transition-old(root),
+html.theme-vt::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+html.theme-vt::view-transition-old(root) { z-index: 1; }
+html.theme-vt::view-transition-new(root) { z-index: 2; }
+
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } .draw { animation: none; } .btn-pen:active { transform: none; } }

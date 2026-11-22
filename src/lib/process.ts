@@ -118,7 +118,8 @@ export async function processImage(img: ImageBitmap, rot: number, area: Area, sp
   // Bail out between encodes once a newer edit supersedes this run, so drags don't pile up work.
   const enc = async (q: number) => { if (isStale()) throw new Stale(); return base(q); };
   let r = await fitQuality(enc, cap);
-  if (!r) return { url: "", bytes: 0, quality: 0, w: spec.w, h: spec.h, padded: false, fits: false, tooBig: true };
+  // Nothing fits: report how small the picture could get, so the page can say by how much it missed.
+  if (!r) return { url: "", bytes: (await enc(0.05)).length, quality: 0, w: spec.w, h: spec.h, padded: false, fits: false, tooBig: true };
 
   let bytes: Uint8Array = r.bytes, padded = false;
   if (min && bytes.length < min) { // too small: spend the headroom on real quality before padding

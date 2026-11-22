@@ -8,7 +8,7 @@ self.addEventListener("install", (e) => e.waitUntil((async () => {
   const html = await (await fetch("/", { cache: "no-cache" })).text();
   const assets = assetsIn(html);
   for (const css of assets.filter((a) => a.endsWith(".css"))) assets.push(...assetsIn(await (await fetch(css)).text())); // fonts
-  await cache.addAll(["/", "/favicon.svg", "/manifest.webmanifest", ...new Set(assets)]);
+  await cache.addAll(["/", "/favicon.svg", "/manifest.webmanifest", "/theme.js", ...new Set(assets)]);
   await self.skipWaiting();
 })()));
 

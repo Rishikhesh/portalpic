@@ -10,12 +10,15 @@ export const range = (s: Spec) => (s.minKB ? `${size(s.minKB)}–${size(s.maxKB)
 
 const name = (s: Spec) => `${s.group} ${s.label.toLowerCase()}`;
 
-export const pagePath = (s: Spec) => (s.id === "custom" ? "/" : `/${s.id}`);
-export const pageTitle = (s: Spec) => (s.id === "custom" ? HOME_TITLE : `${s.group} ${s.label} size & resizer: ${range(s)}, ${s.w}×${s.h} px | PortalPic`);
+export const CUSTOM_TITLE = "Resize a photo to any pixel size and KB | PortalPic";
+export const CUSTOM_DESCRIPTION = "Type the width, height and KB limit your form asks for and get a JPG that fits. Free, in your browser; nothing is uploaded.";
+
+export const pagePath = (s: Spec) => `/${s.id}`;
+export const pageTitle = (s: Spec) => (s.id === "custom" ? CUSTOM_TITLE : `${s.group} ${s.label} size & resizer: ${range(s)}, ${s.w}×${s.h} px | PortalPic`);
 export const pageDescription = (s: Spec) =>
-  s.id === "custom" ? HOME_DESCRIPTION
+  s.id === "custom" ? CUSTOM_DESCRIPTION
     : `Resize and compress your ${name(s)} to ${s.w} × ${s.h} pixels and ${range(s)}, free, in your browser. Nothing is uploaded. Rules checked against the official notice.`;
-export const heading = (s: Spec) => (s.id === "custom" ? "Drop a photo or signature" : `Resize your ${name(s)}`);
+export const heading = (s: Spec) => (s.id === "custom" ? "Resize to any size and KB" : `Resize your ${name(s)}`);
 
 /** When the preset rules were last checked against their official sources. */
 export const CHECKED = "November 2026";

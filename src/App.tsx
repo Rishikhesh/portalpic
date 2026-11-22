@@ -1,34 +1,86 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShieldCheck, MonitorDown, FileStack } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { ArrowLeft, MonitorDown, FileStack } from "lucide-react";
 import { PresetCombobox } from "@/components/PresetCombobox";
 import { Stage } from "@/components/Stage";
-import { Inspector, DownloadButton, message } from "@/components/Inspector";
-import { presets, customSpec, isInk, kitFor, faceGuide, type Custom } from "@/lib/spec";
+import { Inspector, ResultBar } from "@/components/Inspector";
+import { presets, customSpec, isInk, kitFor, faceGuide, type Custom, type Spec } from "@/lib/spec";
 import { KitBar } from "@/components/KitBar";
+import { Home } from "@/components/Home";
+import { Header, Footer, headerLink } from "@/components/Chrome";
 import { processImage, loadImage, LoadError, Stale, type Area, type Result } from "@/lib/process";
-import { cn } from "@/lib/utils";
-import { REPO, REQUEST_FORM_URL, requestPresetUrl } from "@/lib/links";
-import { PrivacyDialog } from "@/components/PrivacyDialog";
-import { HOME_TITLE, heading, pagePath, pageTitle } from "@/lib/seo";
-import { Logo } from "@/components/Logo";
+import { cn, plainClick } from "@/lib/utils";
+import { HOME_TITLE, heading, pageTitle } from "@/lib/seo";
 
 const store = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
+const known = (id: string | null | undefined): id is string => !!id && (id === "custom" || presets.some((p) => p.id === id));
+/** /ibps-photo opens that preset; anything else is the home page. */
+const fromPath = () => { const id = location.pathname.split("/")[1]; return known(id) ? id : null; };
+const DEFAULT_CUSTOM: Custom = { w: 200, h: 230, minKB: 20, maxKB: 50 };
+
 export default function App() {
-  const [presetId, setPresetId] = useState(() => {
-    const fromUrl = location.pathname.split("/")[1]; // /ibps-photo opens that preset
-    if (presets.some((p) => p.id === fromUrl)) return fromUrl;
-    const last = store.get("pp.preset");
-    return last && (last === "custom" || presets.some((p) => p.id === last)) ? last : presets[0].id;
-  });
-  const [custom, setCustom] = useState<Custom>({ w: 200, h: 230, minKB: 20, maxKB: 50 });
-  const spec = useMemo(
-    () => (presetId === "custom" ? customSpec(custom) : presets.find((p) => p.id === presetId)!),
-    [presetId, custom],
+  const [presetId, setPresetId] = useState(fromPath);
+  const [done, setDone] = useState<Set<string>>(() => new Set());
+  const markDone = useCallback((id: string) => setDone((d) => new Set(d).add(id)), []);
+  const install = useInstallPrompt();
+
+  useEffect(() => {
+    const onPop = () => setPresetId(fromPath());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Remembered so the home page can offer "Continue with …" next time.
+  useEffect(() => { if (presetId) store.set("pp.preset", presetId); }, [presetId]);
+
+  // Home → a form adds a history entry, so Back returns to the list. Switching between forms replaces it.
+  const go = useCallback((id: string | null, replace = false) => {
+    history[replace ? "replaceState" : "pushState"](null, "", id ? `/${id}` : "/");
+    setPresetId(id);
+    if (!replace) window.scrollTo(0, 0);
+  }, []);
+  const home = (e: MouseEvent) => { if (plainClick(e)) { e.preventDefault(); go(null); } };
+
+  const pdf = <a href="/pdf" className={headerLink}><FileStack className="size-4" /> PDF tools</a>;
+  const installBtn = install && (
+    <button type="button" onClick={install} className={headerLink} title="Install PortalPic: works offline"><MonitorDown className="size-4" /> Install</button>
   );
+
+  if (!presetId) {
+    const last = store.get("pp.preset");
+    return (
+      <div className="flex min-h-svh flex-col">
+        <Title text={HOME_TITLE} />
+        <Header onHome={home} right={<>{installBtn}{pdf}</>} />
+        <Home last={known(last) ? (last === "custom" ? customSpec(DEFAULT_CUSTOM) : presets.find((p) => p.id === last)!) : null} onPick={go} install={install} />
+        <div className="mx-auto w-full max-w-5xl sm:px-1"><Footer /></div>
+      </div>
+    );
+  }
+  return <Tool presetId={presetId} go={go} home={home} done={done} markDone={markDone} right={<>{installBtn}{pdf}</>} />;
+}
+
+function Title({ text }: { text: string }) {
+  useEffect(() => { document.title = text; }, [text]);
+  return null;
+}
+
+type ToolProps = {
+  presetId: string;
+  go: (id: string | null, replace?: boolean) => void;
+  home: (e: MouseEvent) => void;
+  done: Set<string>;
+  markDone: (id: string) => void;
+  right: React.ReactNode;
+};
+
+function Tool({ presetId, go, home, done, markDone, right }: ToolProps) {
+  const [custom, setCustom] = useState<Custom>(DEFAULT_CUSTOM);
+  const specOf = useCallback((id: string): Spec => (id === "custom" ? customSpec(custom) : presets.find((p) => p.id === id)!), [custom]);
+  const spec = useMemo(() => specOf(presetId), [specOf, presetId]);
 
   const [img, setImg] = useState<ImageBitmap | null>(null);
   const [src, setSrc] = useState<string | null>(null);
@@ -39,35 +91,38 @@ export default function App() {
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<Set<string>>(() => new Set());
-  const markDone = useCallback((id: string) => setDone((d) => new Set(d).add(id)), []);
-  const install = useInstallPrompt();
   const job = useRef(0);
   const prev = useRef<{ img: ImageBitmap | null; src: string | null; result: Result | null }>({ img: null, src: null, result: null });
 
+  // Release the current image's memory and blob URLs.
+  const release = useCallback(() => {
+    job.current++;
+    prev.current.img?.close();
+    if (prev.current.src) URL.revokeObjectURL(prev.current.src);
+    if (prev.current.result?.url) URL.revokeObjectURL(prev.current.result.url);
+    prev.current = { img: null, src: null, result: null };
+  }, []);
+  useEffect(() => release, [release]);
+
   const choosePreset = (id: string) => {
-    const next = id === "custom" ? customSpec(custom) : presets.find((p) => p.id === id)!;
-    setPresetId(id); store.set("pp.preset", id); setTargetKB(null); setClean(isInk(next));
-    history.replaceState(null, "", pagePath(next)); // shareable link to this preset
+    const next = specOf(id);
+    // A face photo is never the right picture for a signature (or the reverse), so start that upload empty.
+    if (isInk(next) !== isInk(spec)) { release(); setImg(null); setSrc(null); setResult(null); setArea(null); setBusy(false); setRotation(0); }
+    setTargetKB(null); setClean(isInk(next)); setError(null);
+    go(id, true);
   };
 
-  useEffect(() => { document.title = location.pathname === "/" ? HOME_TITLE : pageTitle(spec); }, [spec]);
-
   const onFile = useCallback(async (f: File) => {
-    if (!f.type.startsWith("image/") && !/\.(heic|heif)$/i.test(f.name)) { setError("That isn't an image. Choose a JPG or PNG."); return; }
+    if (!f.type.startsWith("image/") && !/\.(heic|heif)$/i.test(f.name)) { setError("That isn't a picture. Choose a JPG or PNG."); return; }
     try {
       const { bitmap, url } = await loadImage(f);
-      // Release the previous image's memory and blob URLs before swapping in the new one.
-      job.current++;
-      prev.current.img?.close();
-      if (prev.current.src) URL.revokeObjectURL(prev.current.src);
-      if (prev.current.result?.url) URL.revokeObjectURL(prev.current.result.url);
+      release();
       setError(null); setRotation(0); setArea(null); setResult(null); setBusy(false);
       setImg(bitmap); setSrc(url);
     } catch (e) {
       setError(e instanceof LoadError ? e.message : "This browser can't open that file. Choose a JPG or PNG.");
     }
-  }, []);
+  }, [release]);
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => { const f = e.clipboardData?.files[0]; if (f) onFile(f); };
@@ -86,7 +141,7 @@ export default function App() {
       catch (e) {
         if (e instanceof Stale || id !== job.current) return;
         setBusy(false);
-        setError("Couldn't compress this image. Try a smaller crop or another photo.");
+        setError("Couldn't make this file. Try a tighter crop or another picture.");
         return;
       }
       if (id !== job.current) { if (r.url) URL.revokeObjectURL(r.url); return; }
@@ -99,81 +154,48 @@ export default function App() {
 
   useEffect(() => { prev.current = { img, src, result }; }, [img, src, result]);
 
-  const msg = result ? message(spec, result) : null;
+  const kit = kitFor(spec);
+  // The next upload this form still needs: the first one after this that hasn't been downloaded yet.
+  const at = kit.findIndex((p) => p.id === spec.id);
+  const next = [...kit.slice(at + 1), ...kit.slice(0, at)].find((p) => !done.has(p.id)) ?? null;
+  const bar = { spec, result, busy, done, next, onNext: choosePreset, onDownloaded: markDone };
+  const back = "flex h-11 shrink-0 items-center gap-1.5 rounded-md border border-line-strong bg-panel px-3 text-[15px] font-medium hover:bg-accent";
 
   return (
     <div className="flex min-h-svh flex-col lg:h-svh">
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel px-4">
-        <a href="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
-          <Logo /> PortalPic
-        </a>
-        <span className="hidden h-5 w-px bg-line lg:block" />
-        <PresetCombobox spec={spec} onChange={choosePreset} className="hidden w-[380px] lg:flex" />
-        <div className="ml-auto flex items-center gap-1">
-          <PrivacyDialog>
-            <button type="button" className="hidden items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground sm:flex">
-              <ShieldCheck className="size-4 text-pass" /> Processed on your device
-            </button>
-          </PrivacyDialog>
-          {install && (
-            <button type="button" onClick={install} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-foreground hover:bg-accent" title="Install PortalPic: works offline">
-              <MonitorDown className="size-4" /> Install
-            </button>
-          )}
-          <a href="/pdf" className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-foreground hover:bg-accent">
-            <FileStack className="size-4" /> PDF tools
-          </a>
-          <a href={REPO} target="_blank" rel="noopener noreferrer" className="hidden rounded-md px-2 py-1 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground sm:block">
-            Source
-          </a>
-        </div>
-      </header>
+      <Title text={pageTitle(spec)} />
+      <Header onHome={home} right={right}>
+        <span className="hidden items-center gap-2 lg:flex">
+          <a href="/" onClick={home} className={cn(back, "h-10")}><ArrowLeft className="size-4" /> All forms</a>
+          <PresetCombobox spec={spec} onChange={choosePreset} className="w-[340px]" />
+        </span>
+      </Header>
 
-      <div className="border-b border-line bg-panel px-4 pb-3 lg:hidden">
-        <PresetCombobox spec={spec} onChange={choosePreset} className="w-full" />
-        <PrivacyDialog>
-          <button type="button" className="mt-2 flex items-center gap-1.5 text-left text-[12px] text-muted-foreground sm:hidden">
-            <ShieldCheck className="size-3.5 shrink-0 text-pass" /> Processed on your device. Nothing is uploaded. <span className="text-foreground underline">How?</span>
-          </button>
-        </PrivacyDialog>
+      <div className="flex items-center gap-2 border-b border-line bg-canvas px-4 py-2 lg:hidden">
+        <a href="/" onClick={home} className={back}><ArrowLeft className="size-4" /> Forms</a>
+        <PresetCombobox spec={spec} onChange={choosePreset} className="h-11 min-w-0 flex-1" />
       </div>
 
-      <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="flex h-[58svh] min-w-0 flex-col lg:h-auto lg:min-h-0">
-          <KitBar kit={kitFor(spec)} spec={spec} done={done} onPick={choosePreset} />
+      <main className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className={cn("flex min-w-0 flex-col lg:h-auto lg:min-h-0", src && "h-[58svh]")}>
+          <KitBar kit={kit} spec={spec} done={done} onPick={choosePreset} />
           <div className="min-h-0 flex-1">
-          <Stage heading={heading(spec)} face={faceGuide(spec)} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
-            onFile={onFile} onArea={setArea} onRotate={() => setRotation((r) => (r + 90) % 360)} />
+            <Stage heading={heading(spec)} face={faceGuide(spec)} ink={isInk(spec)} spec={spec} src={src} aspect={spec.w / spec.h} outW={spec.w} outH={spec.h} rotation={rotation} error={error}
+              onFile={onFile} onArea={setArea} onRotate={() => setRotation((r) => (r + 90) % 360)} />
           </div>
         </div>
-        <aside className={cn("flex flex-col border-line bg-panel lg:min-h-0 lg:border-l", result ? "pb-32 lg:pb-0" : "")}>
+        <aside className={cn("flex flex-col border-t border-line bg-canvas lg:min-h-0 lg:border-t-0 lg:border-l lg:border-line-strong", result && "pb-40 lg:pb-0")}>
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-          <Inspector spec={spec} result={result} busy={busy} clean={clean} onClean={setClean} custom={custom} onCustom={setCustom}
-            targetKB={targetKB} onTarget={setTargetKB} />
-          <footer className="px-5 py-5 text-[12px] leading-relaxed text-muted-foreground">
-            Portals change their rules; check your official notification before uploading. Need another form or country?{" "}
-            {REQUEST_FORM_URL && <><a className="text-foreground underline" href={REQUEST_FORM_URL} target="_blank" rel="noopener noreferrer">Request a preset</a> (no account needed) or{" "}</>}
-            <a className="text-foreground underline" href={requestPresetUrl()} target="_blank" rel="noopener noreferrer">{REQUEST_FORM_URL ? "open a GitHub issue" : "Request a preset"}</a>. Found a wrong one?{" "}
-            <a className="text-foreground underline" href={`${REPO}/issues`} target="_blank" rel="noopener noreferrer">Report it</a>.{" "}
-            <PrivacyDialog><button type="button" className="text-foreground underline">Privacy</button></PrivacyDialog> · MIT licensed.
-          </footer>
+            <Inspector spec={spec} result={result} busy={busy} clean={clean} onClean={setClean} custom={custom} onCustom={setCustom}
+              targetKB={targetKB} onTarget={setTargetKB} />
+            <Footer />
           </div>
-          <div className="hidden border-t border-line p-4 lg:block">
-            <DownloadButton spec={spec} result={result} busy={busy} onDownloaded={markDone} className="w-full" />
-          </div>
+          <ResultBar {...bar} className="hidden border-t border-line-strong bg-panel p-4 lg:block" />
         </aside>
       </main>
 
       {result && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-panel px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] lg:hidden">
-          {msg && (
-            <p className={cn("mb-2 truncate text-center text-[13px] font-medium",
-              msg.tone === "pass" ? "text-pass" : msg.tone === "warn" ? "text-warn" : "text-fail")}>
-              {result.tooBig ? msg.text : `${(result.bytes / 1024).toFixed(1)} KB · ${spec.w}×${spec.h} · ${msg.tone === "fail" ? "outside limit" : "within limit"}`}
-            </p>
-          )}
-          <DownloadButton spec={spec} result={result} busy={busy} onDownloaded={markDone} className="w-full" />
-        </div>
+        <ResultBar {...bar} className="fixed inset-x-0 bottom-0 z-20 border-t border-line-strong bg-panel px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(20_20_20/0.3)] lg:hidden" />
       )}
     </div>
   );

@@ -1,7 +1,6 @@
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource-variable/geist";
-import "@fontsource-variable/geist-mono";
+import "@fontsource-variable/anek-latin/wght.css";
 import "./index.css";
 import App from "./App";
 import { inject } from "@vercel/analytics";
